@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, Pencil, Plus, X } from 'lucide-react'
+import { Check, Inbox, Pencil, Plus, X } from 'lucide-react'
 import { PageWrapper } from '@/components/layout/PageWrapper'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
-import { Badge, ProjectStatusBadge } from '@/components/ui/Badge'
+import { Badge, PriorityBadge, ProjectStatusBadge } from '@/components/ui/Badge'
 import { inputClass } from '@/components/ui/Field'
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
 import { ProjectForm } from '@/components/forms/ProjectForm'
 import { useProjects } from '@/hooks/useProjects'
+import { usePendingClaims } from '@/hooks/useTasks'
 import { useUsersWithHours } from '@/hooks/useUsers'
-import { api } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { cn, formatHours, formatMoney, formatPct } from '@/lib/utils'
-import type { Project, ProjectInput, User } from '@/types'
+import type { PendingClaim, Project, ProjectInput, User } from '@/types'
 
 export default function Admin() {
   const { data: projects, loading, error, reload, setData } = useProjects()
@@ -44,6 +45,8 @@ export default function Admin() {
         </Button>
       }
     >
+      <PendingClaimsSection />
+
       <section className="mb-8">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-txt3">
           Equipo · horas del mes
@@ -329,5 +332,86 @@ function BilledCell({ project, onSaved }: { project: Project; onSaved: () => voi
         <X className="size-3.5" />
       </button>
     </div>
+  )
+}
+
+function PendingClaimsSection() {
+  const { data: claims, loading, error, resolve } = usePendingClaims()
+  const [busy, setBusy] = useState<string | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const act = async (claim: PendingClaim, action: 'approve' | 'reject') => {
+    setBusy(claim.task.id)
+    setFailure(null)
+    try {
+      await resolve(claim.task.id, action)
+    } catch (err) {
+      setFailure(err instanceof ApiError ? err.message : 'No se pudo resolver la solicitud')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Sin solicitudes la seccion no aporta nada: se esconde en vez de mostrar un vacio.
+  if (loading || (claims && claims.length === 0)) return null
+
+  return (
+    <section className="mb-8">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-txt3">
+        <Inbox className="size-4" />
+        Solicitudes pendientes
+        {claims && claims.length > 0 && (
+          <span className="rounded-full bg-orange-500/15 px-2 text-[11px] leading-5 text-orange-400">
+            {claims.length}
+          </span>
+        )}
+      </h2>
+
+      {error && <ErrorState message={error} />}
+      {failure && (
+        <div className="mb-3">
+          <ErrorState message={failure} />
+        </div>
+      )}
+
+      <ul className="space-y-2">
+        {claims?.map((claim) => (
+          <li
+            key={claim.task.id}
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-orange-500/25 bg-graphite p-3"
+          >
+            <Avatar user={claim.claimer} size="sm" />
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-txt">{claim.task.title}</p>
+              <p className="truncate text-[11px] text-txt3">
+                <span className="text-txt2">{claim.claimer?.name ?? 'Alguien'}</span>
+                {claim.project_name ? ` · ${claim.project_name}` : ''}
+              </p>
+            </div>
+
+            <PriorityBadge priority={claim.task.priority} />
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                loading={busy === claim.task.id}
+                onClick={() => void act(claim, 'approve')}
+              >
+                Aprobar
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy === claim.task.id}
+                onClick={() => void act(claim, 'reject')}
+              >
+                Rechazar
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

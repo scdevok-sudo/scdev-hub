@@ -10,9 +10,10 @@ interface KanbanColumnProps {
   tasks: Task[]
   onOpen: (task: Task) => void
   onAdd: (status: TaskStatus) => void
+  onClaim: (task: Task) => void
 }
 
-export function KanbanColumn({ status, label, tasks, onOpen, onAdd }: KanbanColumnProps) {
+export function KanbanColumn({ status, label, tasks, onOpen, onAdd, onClaim }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
   return (
@@ -41,7 +42,7 @@ export function KanbanColumn({ status, label, tasks, onOpen, onAdd }: KanbanColu
         )}
       >
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpen} />
+          <TaskCard key={task.id} task={task} onOpen={onOpen} onClaim={onClaim} />
         ))}
         {tasks.length === 0 && (
           <p className="grid flex-1 place-items-center rounded-lg border border-dashed border-line text-[11px] text-txt3">

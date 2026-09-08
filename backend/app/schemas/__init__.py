@@ -10,8 +10,10 @@ from app.schemas.project import (
 )
 from app.schemas.task import (
     ChecklistItem,
+    ClaimStatus,
     CommentCreate,
     CommentOut,
+    PendingClaim,
     TaskCreate,
     TaskOut,
     TaskUpdate,
@@ -21,12 +23,14 @@ from app.schemas.user import UserOut, UserWithHours
 
 __all__ = [
     "ChecklistItem",
+    "ClaimStatus",
     "CommentCreate",
     "CommentOut",
     "DashboardOut",
     "MemberCreate",
     "MemberOut",
     "PayoutRow",
+    "PendingClaim",
     "ProjectCreate",
     "ProjectOut",
     "ProjectSummary",

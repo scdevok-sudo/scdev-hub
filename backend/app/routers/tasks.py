@@ -5,10 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
-from app.models import Task, TaskComment, User
+from app.core.deps import get_current_user, require_admin
+from app.models import Project, Task, TaskComment, User
 from app.routers.projects import get_visible_project
-from app.schemas import CommentCreate, CommentOut, TaskCreate, TaskOut, TaskUpdate
+from app.schemas import (
+    CommentCreate,
+    CommentOut,
+    PendingClaim,
+    TaskCreate,
+    TaskOut,
+    TaskUpdate,
+)
 
 router = APIRouter(tags=["tasks"])
 
@@ -64,8 +71,16 @@ def update_task(
     user: User = Depends(get_current_user),
 ):
     task = _get_task(db, user, task_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(task, field, value)
+
+    # Asignar (o desasignar) a mano pisa cualquier solicitud en curso: la decision
+    # manual del admin manda sobre el pedido pendiente.
+    if "assigned_to" in changes:
+        task.claim_status = None
+        task.claimed_by = None
+
     db.commit()
     db.refresh(task)
     return task
@@ -83,6 +98,88 @@ def delete_task(
     db.delete(task)
     db.commit()
 
+
+@router.post("/tasks/{task_id}/claim", response_model=TaskOut)
+def claim_task(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Pedir una tarea sin asignar. Queda pendiente hasta que un admin resuelva."""
+    task = _get_task(db, user, task_id)
+
+    if task.assigned_to is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La tarea ya esta asignada")
+
+    if task.claim_status == "pending":
+        if task.claimed_by == user.id:
+            return task
+        raise HTTPException(status.HTTP_409_CONFLICT, "Ya hay una solicitud pendiente")
+
+    task.claimed_by = user.id
+    task.claim_status = "pending"
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.post("/tasks/{task_id}/approve-claim", response_model=TaskOut)
+def approve_claim(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tarea no encontrada")
+    if task.claim_status != "pending" or not task.claimed_by:
+        raise HTTPException(status.HTTP_409_CONFLICT, "La tarea no tiene solicitud pendiente")
+
+    task.assigned_to = task.claimed_by
+    task.claim_status = "approved"
+    task.claimed_by = None
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.post("/tasks/{task_id}/reject-claim", response_model=TaskOut)
+def reject_claim(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tarea no encontrada")
+    if task.claim_status != "pending":
+        raise HTTPException(status.HTTP_409_CONFLICT, "La tarea no tiene solicitud pendiente")
+
+    # Vuelve a estar disponible para que la pida otro.
+    task.claim_status = None
+    task.claimed_by = None
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.get("/admin/claims", response_model=list[PendingClaim])
+def list_pending_claims(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    rows = db.execute(
+        select(Task, Project.name)
+        .outerjoin(Project, Project.id == Task.project_id)
+        .where(Task.claim_status == "pending")
+        .order_by(Task.updated_at.desc())
+    ).all()
+    return [
+        PendingClaim(
+            task=TaskOut.model_validate(task),
+            project_id=task.project_id,
+            project_name=project_name,
+            claimer=task.claimer,
+        )
+        for task, project_name in rows
+    ]
 
 @router.get("/tasks/{task_id}/comments", response_model=list[CommentOut])
 def list_comments(

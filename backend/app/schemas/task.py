@@ -8,6 +8,7 @@ from app.schemas.user import UserOut
 
 TaskStatus = Literal["todo", "in_progress", "done"]
 TaskPriority = Literal["low", "medium", "high"]
+ClaimStatus = Literal["pending", "approved", "rejected"]
 
 
 class ChecklistItem(BaseModel):
@@ -48,10 +49,13 @@ class TaskOut(BaseModel):
     status: TaskStatus
     priority: TaskPriority
     assigned_to: uuid.UUID | None = None
+    claim_status: ClaimStatus | None = None
+    claimed_by: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     assignee: UserOut | None = None
+    claimer: UserOut | None = None
 
 
 class CommentCreate(BaseModel):
@@ -67,3 +71,12 @@ class CommentOut(BaseModel):
     content: str
     created_at: datetime | None = None
     user: UserOut | None = None
+
+
+class PendingClaim(BaseModel):
+    """Una solicitud pendiente, con lo minimo para decidir sin abrir el proyecto."""
+
+    task: TaskOut
+    project_id: uuid.UUID | None = None
+    project_name: str | None = None
+    claimer: UserOut | None = None

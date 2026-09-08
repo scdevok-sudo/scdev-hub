@@ -16,6 +16,7 @@ import { TaskCard } from '@/components/kanban/TaskCard'
 import { TaskDrawer } from '@/components/kanban/TaskDrawer'
 import { TaskForm } from '@/components/forms/TaskForm'
 import { useTasks } from '@/hooks/useTasks'
+import { ApiError } from '@/lib/api'
 import { useUsers } from '@/hooks/useUsers'
 import type { Task, TaskInput, TaskStatus } from '@/types'
 
@@ -26,7 +27,15 @@ const COLUMNS: { status: TaskStatus; label: string }[] = [
 ]
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
-  const { data: tasks, loading, error, createTask, updateTask, deleteTask } = useTasks(projectId)
+  const {
+    data: tasks,
+    loading,
+    error,
+    createTask,
+    updateTask,
+    deleteTask,
+    claimTask,
+  } = useTasks(projectId)
   const { data: users } = useUsers()
 
   const [dragging, setDragging] = useState<Task | null>(null)
@@ -34,6 +43,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Task | null>(null)
   const [newStatus, setNewStatus] = useState<TaskStatus>('todo')
+  const [claimError, setClaimError] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -70,11 +80,27 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     setFormOpen(true)
   }
 
+  const claim = async (task: Task) => {
+    setClaimError(null)
+    try {
+      await claimTask(task.id)
+    } catch (err) {
+      // 409 tipico: otro se adelanto, o la tarea ya quedo asignada.
+      setClaimError(err instanceof ApiError ? err.message : 'No se pudo solicitar la tarea')
+    }
+  }
+
   if (loading) return <Loading label="Cargando tablero..." />
   if (error) return <ErrorState message={error} />
 
   return (
     <>
+      {claimError && (
+        <div className="mb-3">
+          <ErrorState message={claimError} />
+        </div>
+      )}
+
       <div className="mb-4 flex justify-end">
         <Button size="sm" icon={<Plus className="size-4" />} onClick={() => openNew('todo')}>
           Nueva tarea
@@ -91,6 +117,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
               tasks={byStatus[column.status]}
               onOpen={(task) => setOpenTaskId(task.id)}
               onAdd={openNew}
+              onClaim={(task) => void claim(task)}
             />
           ))}
         </div>
@@ -113,6 +140,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         onUpdate={async (task, patch) => {
           await updateTask(task.id, patch)
         }}
+        onClaim={(task) => void claim(task)}
       />
 
       <TaskForm

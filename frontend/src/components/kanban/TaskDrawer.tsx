@@ -3,7 +3,12 @@ import { createPortal } from 'react-dom'
 import { Check, ListChecks, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { PriorityBadge, TaskStatusBadge } from '@/components/ui/Badge'
+import {
+  AvailableBadge,
+  ClaimPendingBadge,
+  PriorityBadge,
+  TaskStatusBadge,
+} from '@/components/ui/Badge'
 import { inputClass } from '@/components/ui/Field'
 import { useComments } from '@/hooks/useTasks'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -17,6 +22,7 @@ interface TaskDrawerProps {
   onEdit: (task: Task) => void
   onDelete: (task: Task) => Promise<void>
   onUpdate: (task: Task, patch: Partial<TaskInput>) => Promise<void>
+  onClaim: (task: Task) => void
 }
 
 const STATUSES: { value: TaskStatus; label: string }[] = [
@@ -25,7 +31,7 @@ const STATUSES: { value: TaskStatus; label: string }[] = [
   { value: 'done', label: 'Listo' },
 ]
 
-export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate }: TaskDrawerProps) {
+export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim }: TaskDrawerProps) {
   const { user, isAdmin } = useCurrentUser()
   const { data: comments, loading, addComment } = useComments(task?.id)
   const [draft, setDraft] = useState('')
@@ -114,6 +120,19 @@ export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate }: TaskDr
             <div className="flex flex-wrap items-center gap-2">
               <TaskStatusBadge status={task.status} />
               <PriorityBadge priority={task.priority} />
+              {task.claim_status === 'pending' ? (
+                <ClaimPendingBadge
+                  label={
+                    isAdmin
+                      ? 'Solicitud pendiente'
+                      : task.claimed_by === user?.id
+                        ? 'Solicitada por vos'
+                        : 'Solicitada'
+                  }
+                />
+              ) : (
+                task.assigned_to === null && <AvailableBadge />
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-3 text-xs">
@@ -123,6 +142,15 @@ export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate }: TaskDr
                   <Avatar user={task.assignee} size="xs" />
                   {task.assignee.name}
                 </span>
+              ) : task.claim_status === 'pending' && task.claimer ? (
+                <span className="flex items-center gap-2 text-txt2">
+                  <Avatar user={task.claimer} size="xs" />
+                  {task.claimer.name} la solicito
+                </span>
+              ) : !isAdmin ? (
+                <Button size="sm" variant="outline" onClick={() => onClaim(task)}>
+                  Solicitar
+                </Button>
               ) : (
                 <span className="text-txt3">Sin asignar</span>
               )}

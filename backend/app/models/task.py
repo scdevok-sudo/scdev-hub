@@ -13,6 +13,10 @@ class Task(Base):
     __table_args__ = (
         CheckConstraint("status in ('todo', 'in_progress', 'done')", name="tasks_status_check"),
         CheckConstraint("priority in ('low', 'medium', 'high')", name="tasks_priority_check"),
+        CheckConstraint(
+            "claim_status in ('pending', 'approved', 'rejected') or claim_status is null",
+            name="tasks_claim_status_check",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -28,6 +32,8 @@ class Task(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="todo")
     priority: Mapped[str] = mapped_column(String, nullable=False, server_default="medium")
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    claim_status: Mapped[str | None] = mapped_column(String)
+    claimed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -35,6 +41,7 @@ class Task(Base):
     )
 
     assignee = relationship("User", foreign_keys=[assigned_to], lazy="joined")
+    claimer = relationship("User", foreign_keys=[claimed_by], lazy="joined")
     creator = relationship("User", foreign_keys=[created_by], lazy="joined")
     project = relationship("Project", lazy="joined")
 

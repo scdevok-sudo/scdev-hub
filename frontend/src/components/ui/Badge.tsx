@@ -19,6 +19,9 @@ const PRIORITY: Record<TaskPriority, { label: string; className: string }> = {
   high: { label: 'Alta', className: 'bg-red-dim text-red' },
 }
 
+const AVAILABLE = 'bg-sky-500/12 text-sky-400'
+const CLAIM_PENDING = 'bg-orange-500/15 text-orange-400'
+
 const BASE = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-5'
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
@@ -34,6 +37,16 @@ export function TaskStatusBadge({ status }: { status: TaskStatus }) {
 export function PriorityBadge({ priority }: { priority: TaskPriority }) {
   const config = PRIORITY[priority]
   return <span className={cn(BASE, config.className)}>{config.label}</span>
+}
+
+/** Tarea sin asignar y sin solicitud en curso: cualquiera la puede pedir. */
+export function AvailableBadge() {
+  return <span className={cn(BASE, AVAILABLE)}>Disponible</span>
+}
+
+/** Solicitud esperando que un admin la resuelva. */
+export function ClaimPendingBadge({ label = 'Solicitud pendiente' }: { label?: string }) {
+  return <span className={cn(BASE, CLAIM_PENDING)}>{label}</span>
 }
 
 export function Badge({ children, className }: { children: React.ReactNode; className?: string }) {

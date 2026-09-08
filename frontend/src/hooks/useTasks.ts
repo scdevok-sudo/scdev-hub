@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 import { useAsync } from '@/hooks/useAsync'
-import type { Task, TaskComment, TaskInput } from '@/types'
+import type { PendingClaim, Task, TaskComment, TaskInput } from '@/types'
 
 export function useTasks(projectId: string | undefined) {
   const state = useAsync<Task[]>(
@@ -26,7 +26,27 @@ export function useTasks(projectId: string | undefined) {
     state.setData((state.data ?? []).filter((t) => t.id !== taskId))
   }
 
-  return { ...state, createTask, updateTask, deleteTask }
+  const claimTask = async (taskId: string) => {
+    const task = await api.post<Task>(`/tasks/${taskId}/claim`)
+    state.setData((state.data ?? []).map((t) => (t.id === taskId ? task : t)))
+    return task
+  }
+
+  return { ...state, createTask, updateTask, deleteTask, claimTask }
+}
+
+export function usePendingClaims(enabled = true) {
+  const state = useAsync<PendingClaim[]>(
+    () => (enabled ? api.get<PendingClaim[]>('/admin/claims') : Promise.resolve([])),
+    [enabled],
+  )
+
+  const resolve = async (taskId: string, action: 'approve' | 'reject') => {
+    await api.post(`/tasks/${taskId}/${action}-claim`)
+    state.setData((state.data ?? []).filter((claim) => claim.task.id !== taskId))
+  }
+
+  return { ...state, resolve }
 }
 
 export function useComments(taskId: string | undefined) {

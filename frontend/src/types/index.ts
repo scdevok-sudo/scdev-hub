@@ -2,6 +2,7 @@ export type Role = 'admin' | 'collaborator'
 export type ProjectStatus = 'active' | 'paused' | 'completed'
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
+export type ClaimStatus = 'pending' | 'approved' | 'rejected'
 
 export interface User {
   id: string
@@ -49,10 +50,20 @@ export interface Task {
   status: TaskStatus
   priority: TaskPriority
   assigned_to: string | null
+  claim_status: ClaimStatus | null
+  claimed_by: string | null
   created_by: string | null
   created_at?: string
   updated_at?: string
   assignee: User | null
+  claimer: User | null
+}
+
+export interface PendingClaim {
+  task: Task
+  project_id: string | null
+  project_name: string | null
+  claimer: User | null
 }
 
 export interface ProjectMember {
