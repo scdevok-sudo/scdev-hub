@@ -1,5 +1,7 @@
 from app.schemas.dashboard import DashboardOut
 from app.schemas.project import (
+    MemberCreate,
+    MemberOut,
     PayoutRow,
     ProjectCreate,
     ProjectOut,
@@ -20,6 +22,8 @@ __all__ = [
     "CommentCreate",
     "CommentOut",
     "DashboardOut",
+    "MemberCreate",
+    "MemberOut",
     "PayoutRow",
     "ProjectCreate",
     "ProjectOut",

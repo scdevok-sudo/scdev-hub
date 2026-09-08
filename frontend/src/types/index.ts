@@ -30,6 +30,7 @@ export interface Project {
   updated_at?: string
   logged_hours: number
   open_tasks: number
+  member_ids: string[]
 }
 
 export interface Task {
@@ -44,6 +45,14 @@ export interface Task {
   created_at?: string
   updated_at?: string
   assignee: User | null
+}
+
+export interface ProjectMember {
+  id: string
+  project_id: string | null
+  user_id: string | null
+  created_at?: string
+  user: User | null
 }
 
 export interface TaskComment {

@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.core.payouts import split_by_user
-from app.models import Project, Task, TimeLog, User
+from app.models import Project, ProjectMember, Task, TimeLog, User
 from app.schemas import (
+    MemberCreate,
+    MemberOut,
     PayoutRow,
     ProjectCreate,
     ProjectOut,
@@ -21,12 +23,16 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def visible_project_ids(db: Session, user: User) -> set[uuid.UUID] | None:
-    """None = puede ver todos (admin). Set = proyectos donde el collaborator participa."""
+    """None = puede ver todos (admin). Set = proyectos donde el collaborator es miembro.
+
+    La membresia es explicita (tabla project_members): un admin agrega y saca gente.
+    Ya no se infiere de tener una tarea asignada o horas cargadas.
+    """
     if user.is_admin:
         return None
-    from_tasks = select(Task.project_id).where(Task.assigned_to == user.id)
-    from_logs = select(TimeLog.project_id).where(TimeLog.user_id == user.id)
-    ids = set(db.scalars(from_tasks)) | set(db.scalars(from_logs))
+    ids = set(
+        db.scalars(select(ProjectMember.project_id).where(ProjectMember.user_id == user.id))
+    )
     ids.discard(None)
     return ids
 
@@ -59,11 +65,21 @@ def _decorate(db: Session, projects: list[Project]) -> list[ProjectOut]:
             .group_by(Task.project_id)
         ).all()
     )
+    members: dict[uuid.UUID, list[uuid.UUID]] = {pid: [] for pid in ids}
+    for project_id, user_id in db.execute(
+        select(ProjectMember.project_id, ProjectMember.user_id).where(
+            ProjectMember.project_id.in_(ids)
+        )
+    ).all():
+        if project_id is not None and user_id is not None:
+            members[project_id].append(user_id)
+
     out = []
     for p in projects:
         item = ProjectOut.model_validate(p)
         item.logged_hours = float(hours.get(p.id, 0) or 0)
         item.open_tasks = int(open_tasks.get(p.id, 0) or 0)
+        item.member_ids = members.get(p.id, [])
         out.append(item)
     return out
 
@@ -118,6 +134,71 @@ def update_project(
     db.commit()
     db.refresh(project)
     return _decorate(db, [project])[0]
+
+
+@router.get("/{project_id}/members", response_model=list[MemberOut])
+def list_members(
+    project_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = get_visible_project(db, user, project_id)
+    return list(
+        db.scalars(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project.id)
+            .order_by(ProjectMember.created_at.asc())
+        )
+    )
+
+
+@router.post(
+    "/{project_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED
+)
+def add_member(
+    project_id: uuid.UUID,
+    payload: MemberCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proyecto no encontrado")
+    if not db.get(User, payload.user_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado")
+
+    existing = db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project.id,
+            ProjectMember.user_id == payload.user_id,
+        )
+    )
+    if existing:
+        return existing
+
+    member = ProjectMember(project_id=project.id, user_id=payload.user_id)
+    db.add(member)
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(
+    project_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    member = db.scalar(
+        select(ProjectMember).where(
+            ProjectMember.project_id == project_id, ProjectMember.user_id == user_id
+        )
+    )
+    if not member:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "El usuario no es miembro del proyecto")
+    db.delete(member)
+    db.commit()
 
 
 @router.get("/{project_id}/summary", response_model=ProjectSummary)

@@ -46,6 +46,7 @@ class ProjectOut(BaseModel):
     updated_at: datetime | None = None
     logged_hours: float = 0.0
     open_tasks: int = 0
+    member_ids: list[uuid.UUID] = []
 
 
 class PayoutRow(BaseModel):
@@ -63,3 +64,17 @@ class ProjectSummary(BaseModel):
     distributable: float
     total_hours: float
     rows: list[PayoutRow]
+
+
+class MemberCreate(BaseModel):
+    user_id: uuid.UUID
+
+
+class MemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None
+    created_at: datetime | None = None
+    user: UserOut | None = None
