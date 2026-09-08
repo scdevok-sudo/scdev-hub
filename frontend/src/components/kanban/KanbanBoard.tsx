@@ -110,8 +110,8 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         onDelete={async (task) => {
           await deleteTask(task.id)
         }}
-        onStatusChange={async (task, status) => {
-          await updateTask(task.id, { status })
+        onUpdate={async (task, patch) => {
+          await updateTask(task.id, patch)
         }}
       />
 

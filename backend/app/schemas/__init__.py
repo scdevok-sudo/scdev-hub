@@ -9,6 +9,7 @@ from app.schemas.project import (
     ProjectUpdate,
 )
 from app.schemas.task import (
+    ChecklistItem,
     CommentCreate,
     CommentOut,
     TaskCreate,
@@ -19,6 +20,7 @@ from app.schemas.time_log import TimeLogCreate, TimeLogOut, TimeLogUpdate
 from app.schemas.user import UserOut, UserWithHours
 
 __all__ = [
+    "ChecklistItem",
     "CommentCreate",
     "CommentOut",
     "DashboardOut",

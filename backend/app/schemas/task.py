@@ -10,9 +10,17 @@ TaskStatus = Literal["todo", "in_progress", "done"]
 TaskPriority = Literal["low", "medium", "high"]
 
 
+class ChecklistItem(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    text: str = Field(min_length=1, max_length=500)
+    done: bool = False
+
+
 class TaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = None
+    details: str | None = None
+    checklist: list[ChecklistItem] = []
     status: TaskStatus = "todo"
     priority: TaskPriority = "medium"
     assigned_to: uuid.UUID | None = None
@@ -21,6 +29,8 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=300)
     description: str | None = None
+    details: str | None = None
+    checklist: list[ChecklistItem] | None = None
     status: TaskStatus | None = None
     priority: TaskPriority | None = None
     assigned_to: uuid.UUID | None = None
@@ -33,6 +43,8 @@ class TaskOut(BaseModel):
     project_id: uuid.UUID | None = None
     title: str
     description: str | None = None
+    details: str | None = None
+    checklist: list[ChecklistItem] = []
     status: TaskStatus
     priority: TaskPriority
     assigned_to: uuid.UUID | None = None

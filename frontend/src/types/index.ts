@@ -33,11 +33,19 @@ export interface Project {
   member_ids: string[]
 }
 
+export interface ChecklistItem {
+  id: string
+  text: string
+  done: boolean
+}
+
 export interface Task {
   id: string
   project_id: string | null
   title: string
   description: string | null
+  details: string | null
+  checklist: ChecklistItem[]
   status: TaskStatus
   priority: TaskPriority
   assigned_to: string | null
@@ -117,6 +125,8 @@ export interface ProjectInput {
 export interface TaskInput {
   title: string
   description?: string | null
+  details?: string | null
+  checklist?: ChecklistItem[]
   status?: TaskStatus
   priority?: TaskPriority
   assigned_to?: string | null
