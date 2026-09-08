@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import RedirectResponse
+from urllib.parse import quote
+
+from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.google import google_client
-from app.auth.jwt import COOKIE_NAME, create_access_token
+from app.auth.jwt import create_access_token
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -12,18 +14,6 @@ from app.models import User
 from app.schemas import UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _set_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=token,
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite=settings.cookie_samesite,
-        max_age=settings.jwt_expire_hours * 3600,
-        path="/",
-    )
 
 
 @router.get("/google/login")
@@ -57,20 +47,23 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     db.commit()
 
     access_token = create_access_token(user.id, user.email, user.role)
-    response = RedirectResponse(settings.frontend_url)
-    _set_cookie(response, access_token)
-    return response
+
+    # Un cliente que no sea el navegador (curl, tests) pide JSON y se lleva el
+    # token en el body. El navegador llega redirigido desde Google, asi que la
+    # unica forma de devolverle el token es en la URL del redirect.
+    if "application/json" in request.headers.get("accept", ""):
+        return JSONResponse({"access_token": access_token, "token_type": "bearer"})
+
+    return RedirectResponse(
+        f"{settings.frontend_url}/auth/callback?token={quote(access_token)}"
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response):
-    response.delete_cookie(
-        COOKIE_NAME,
-        path="/",
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite=settings.cookie_samesite,
-    )
+async def logout():
+    # Sin cookie no hay nada que invalidar del lado del server: el JWT es
+    # stateless y el frontend lo borra de localStorage. El endpoint queda para
+    # que el cliente tenga un punto unico de logout.
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

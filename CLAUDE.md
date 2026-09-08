@@ -21,7 +21,10 @@ No es un producto público. No tiene página de registro ni SEO.
 - **Frontend**: React 19 + Vite + TypeScript + Tailwind CSS v4
 - **Backend**: FastAPI (Python 3.12+)
 - **Base de datos**: Supabase (PostgreSQL) — ya tenemos cuenta
-- **Auth**: Google OAuth 2.0 via `authlib` en el backend. JWT en cookie HttpOnly.
+- **Auth**: Google OAuth 2.0 via `authlib` en el backend. JWT en localStorage,
+  enviado en `Authorization: Bearer`. (El brief original decia cookie HttpOnly;
+  se cambio porque en Vercel serverless el front y el back quedan cross-site y
+  la cookie no sobrevive. No volver a cookies sin revisar eso.)
 - **Estado cliente**: Zustand
 - **Drag & drop Kanban**: `@dnd-kit/core` — no usar react-beautiful-dnd (abandonada)
 - **Iconos**: lucide-react
@@ -220,8 +223,8 @@ VITE_API_URL=http://localhost:8000
 ### Auth
 ```
 GET  /auth/google/login      → redirige a Google OAuth
-GET  /auth/google/callback   → procesa code, setea cookie JWT, redirige a FRONTEND_URL
-POST /auth/logout            → borra cookie
+GET  /auth/google/callback   → procesa code, redirige a FRONTEND_URL/auth/callback?token=<JWT>
+POST /auth/logout            → no-op, el cliente borra el token de localStorage
 GET  /auth/me                → devuelve usuario actual o 401
 ```
 

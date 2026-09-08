@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { useAuthStore } from '@/stores/authStore'
 import Admin from '@/pages/Admin'
+import AuthCallback from '@/pages/AuthCallback'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import MyHours from '@/pages/MyHours'
@@ -43,9 +44,14 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={loaded && user ? <Navigate to="/" replace /> : <Login />} />
       <Route
-        path="/"
+        path="/login"
+        element={loaded && user ? <Navigate to="/dashboard" replace /> : <Login />}
+      />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/dashboard"
         element={
           <Protected>
             <Dashboard />
@@ -84,7 +90,7 @@ export default function App() {
           </Protected>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )
 }

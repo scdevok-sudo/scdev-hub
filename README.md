@@ -15,7 +15,7 @@ No es un producto público: no hay registro, ni login por password, ni SEO.
 | Frontend | React 19 + Vite 6 + TypeScript + Tailwind v4 |
 | Backend | FastAPI (Python 3.12) + SQLAlchemy 2 |
 | Base de datos | Supabase (PostgreSQL) |
-| Auth | Google OAuth 2.0 (authlib) → JWT en cookie HttpOnly |
+| Auth | Google OAuth 2.0 (authlib) → JWT en localStorage, `Authorization: Bearer` |
 | Estado cliente | Zustand |
 | Drag & drop | @dnd-kit/core |
 | Deploy | Backend en Railway · Frontend en Vercel |
@@ -117,8 +117,8 @@ Todas viven en el backend. El frontend nunca las recalcula.
 | Método | Ruta | Notas |
 | --- | --- | --- |
 | GET | `/auth/google/login` | Redirige a Google |
-| GET | `/auth/google/callback` | Setea cookie JWT, vuelve al frontend |
-| POST | `/auth/logout` | Borra la cookie |
+| GET | `/auth/google/callback` | Redirige a `FRONTEND_URL/auth/callback?token=<JWT>`. Con `Accept: application/json` devuelve `{access_token}` |
+| POST | `/auth/logout` | No-op: el JWT es stateless, el cliente lo descarta |
 | GET | `/auth/me` | Usuario actual o 401 |
 | GET | `/users` | Equipo (para selects de asignación) |
 | GET | `/admin/users` | Equipo + horas del mes (admin) |

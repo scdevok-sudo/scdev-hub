@@ -5,7 +5,10 @@ from jose import JWTError, jwt
 
 from app.core.config import settings
 
-COOKIE_NAME = "scdev_token"
+# El frontend guarda el JWT con esta clave en localStorage y lo manda en
+# Authorization: Bearer. No se usan cookies: en Vercel serverless el frontend
+# y el backend son cross-site y la cookie no sobrevive el round trip.
+TOKEN_STORAGE_KEY = "scdev_token"
 
 
 def create_access_token(user_id: uuid.UUID, email: str, role: str) -> str:
@@ -25,3 +28,13 @@ def decode_access_token(token: str) -> dict | None:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError:
         return None
+
+
+def extract_bearer_token(authorization: str | None) -> str | None:
+    """Saca el JWT de un header Authorization: Bearer <token>."""
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    return token.strip() or None

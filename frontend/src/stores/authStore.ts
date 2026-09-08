@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api } from '@/lib/api'
+import { api, clearToken } from '@/lib/api'
 import type { User } from '@/types'
 
 interface AuthState {
@@ -27,6 +27,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await api.post('/auth/logout')
     } finally {
+      // El JWT es stateless: la sesion termina cuando el cliente lo descarta.
+      clearToken()
       set({ user: null })
       window.location.href = '/login'
     }

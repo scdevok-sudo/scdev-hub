@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { cn } from '@/lib/utils'
 
 const LINKS = [
-  { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/proyectos', label: 'Proyectos', icon: FolderKanban, end: false },
   { to: '/mis-horas', label: 'Mis horas', icon: Clock, end: false },
 ]

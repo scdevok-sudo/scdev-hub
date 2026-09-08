@@ -1,5 +1,36 @@
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000'
 
+/**
+ * El JWT vive en localStorage y viaja en Authorization: Bearer.
+ * No se usan cookies HttpOnly: en Vercel serverless el frontend y el backend
+ * quedan cross-site y la cookie no sobrevive el round trip.
+ */
+const TOKEN_KEY = 'scdev_token'
+
+export function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function setToken(token: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, token)
+  } catch {
+    // Modo privado o storage bloqueado: la sesion dura lo que dure la pestana.
+  }
+}
+
+export function clearToken(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // Nada que limpiar.
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -26,12 +57,19 @@ async function request<T>(path: string, { method = 'GET', body, params }: Option
     }
   }
 
+  const token = getToken()
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
+  if (body) headers['Content-Type'] = 'application/json'
+
   const res = await fetch(url.toString(), {
     method,
-    credentials: 'include',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   })
+
+  // Token vencido o invalido: descartarlo para no reintentar con basura.
+  if (res.status === 401 && token) clearToken()
 
   if (res.status === 204) return undefined as T
 
