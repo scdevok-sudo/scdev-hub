@@ -1,6 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
-import { Logo } from '@/components/ui/Logo'
 
 const ERRORS: Record<string, string> = {
   oauth: 'No se pudo completar el login con Google. Intentá de nuevo.',
@@ -16,7 +15,7 @@ export default function Login() {
     <main className="grid min-h-screen place-items-center bg-onix px-4">
       <div className="w-full max-w-sm text-center">
         <div className="mb-8 flex justify-center">
-          <Logo className="scale-125" />
+          <img src="/favicon.png" alt="SCdev" width={64} height={64} className="size-16" />
         </div>
 
         <h1 className="text-xl font-normal text-txt">Bienvenido de vuelta</h1>
