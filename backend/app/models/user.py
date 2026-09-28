@@ -22,6 +22,8 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String)
     google_id: Mapped[str | None] = mapped_column(String, unique=True)
     role: Mapped[str] = mapped_column(String, nullable=False, server_default="collaborator")
+    # Encriptado (Fernet, app/core/crypto.py) -- nunca en texto plano. Parte E, fase 3.
+    google_refresh_token: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     @property

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
 import { ClientForm } from '@/components/forms/ClientForm'
 import { ClientServiceForm } from '@/components/forms/ClientServiceForm'
+import { AgendarButton } from '@/components/forms/AgendarButton'
 import {
   deleteClient,
   deleteClientService,
@@ -147,6 +148,14 @@ function ClientCard({
                 {service.monto_mensual != null && (
                   <span className="text-txt2">{formatMoney(service.monto_mensual)}</span>
                 )}
+                {service.calendar_sync === 'manual' &&
+                  !service.google_event_id &&
+                  service.proxima_fecha_vencimiento && (
+                    <AgendarButton
+                      path={`/client-services/${service.id}/agendar`}
+                      onDone={reloadServices}
+                    />
+                  )}
                 <button
                   onClick={async () => {
                     await deleteClientService(service.id)

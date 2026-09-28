@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Field, inputClass } from '@/components/ui/Field'
+import { CalendarSyncField } from '@/components/forms/CalendarSyncField'
 import { ApiError } from '@/lib/api'
 import { createClientService, updateClientService } from '@/hooks/useFinance'
-import type { ClientService, Recurrencia, ServiceEstado } from '@/types'
+import type { CalendarSync, ClientService, Recurrencia, ServiceEstado } from '@/types'
 
 interface ClientServiceFormProps {
   open: boolean
@@ -21,6 +22,7 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
   const [proximaFecha, setProximaFecha] = useState('')
   const [recurrencia, setRecurrencia] = useState<Recurrencia>('mensual')
   const [estado, setEstado] = useState<ServiceEstado>('activo')
+  const [calendarSync, setCalendarSync] = useState<CalendarSync>('off')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,6 +35,7 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
     setProximaFecha(service?.proxima_fecha_vencimiento ?? '')
     setRecurrencia(service?.recurrencia ?? 'mensual')
     setEstado(service?.estado ?? 'activo')
+    setCalendarSync(service?.calendar_sync ?? 'off')
   }, [open, service])
 
   const submit = async (event: React.FormEvent) => {
@@ -46,6 +49,7 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
       proxima_fecha_vencimiento: proximaFecha || null,
       recurrencia,
       estado,
+      calendar_sync: calendarSync,
     }
     try {
       if (service) await updateClientService(service.id, payload)
@@ -140,6 +144,12 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
             <option value="cancelado">Cancelado</option>
           </select>
         </Field>
+
+        <CalendarSyncField
+          value={calendarSync}
+          onChange={setCalendarSync}
+          hasDate={Boolean(proximaFecha)}
+        />
 
         {error && <p className="text-xs text-red">{error}</p>}
       </form>

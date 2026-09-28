@@ -63,6 +63,8 @@ class Invoice(Base):
     fecha_seguimiento: Mapped[date | None] = mapped_column(Date)
     notas: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    calendar_sync: Mapped[str | None] = mapped_column(String, server_default="off")
+    google_event_id: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     client = relationship("Client", lazy="joined")
@@ -86,6 +88,8 @@ class ClientService(Base):
     proxima_fecha_vencimiento: Mapped[date | None] = mapped_column(Date)
     recurrencia: Mapped[str] = mapped_column(String, nullable=False, server_default="mensual")
     estado: Mapped[str] = mapped_column(String, nullable=False, server_default="activo")
+    calendar_sync: Mapped[str | None] = mapped_column(String, server_default="off")
+    google_event_id: Mapped[str | None] = mapped_column(String)
 
     client = relationship("Client", lazy="joined")
 

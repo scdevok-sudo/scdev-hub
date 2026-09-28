@@ -15,7 +15,7 @@ import { KanbanColumn } from '@/components/kanban/KanbanColumn'
 import { TaskCard } from '@/components/kanban/TaskCard'
 import { TaskDrawer } from '@/components/kanban/TaskDrawer'
 import { TaskForm } from '@/components/forms/TaskForm'
-import { useTasks } from '@/hooks/useTasks'
+import { useAdminTasks, useTasks } from '@/hooks/useTasks'
 import { ApiError } from '@/lib/api'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useUsers } from '@/hooks/useUsers'
@@ -41,7 +41,18 @@ function sortForMobileList(tasks: Task[]): Task[] {
   })
 }
 
-export function KanbanBoard({ projectId }: { projectId: string }) {
+interface KanbanBoardProps {
+  /** Requerido en modo 'project' (default). Ignorado en modo 'admin'. */
+  projectId?: string
+  /** Parte C, fase 3: tablero administrativo (/admin-tasks), sin proyecto ni claim. */
+  variant?: 'project' | 'admin'
+}
+
+export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps) {
+  const isAdminBoard = variant === 'admin'
+
+  const project = useTasks(isAdminBoard ? undefined : projectId)
+  const admin = useAdminTasks(isAdminBoard)
   const {
     data: tasks,
     loading,
@@ -49,8 +60,10 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     createTask,
     updateTask,
     deleteTask,
-    claimTask,
-  } = useTasks(projectId)
+    reload,
+  } = isAdminBoard ? admin : project
+  const claimTask = isAdminBoard ? undefined : project.claimTask
+
   const { data: users } = useUsers()
   const isDesktop = useIsDesktop()
 
@@ -99,6 +112,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   }
 
   const claim = async (task: Task) => {
+    if (!claimTask) return
     setClaimError(null)
     try {
       await claimTask(task.id)
@@ -180,6 +194,8 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
 
       <TaskDrawer
         task={openTask}
+        users={users ?? []}
+        variant={variant}
         onClose={() => setOpenTaskId(null)}
         onEdit={(task) => {
           setOpenTaskId(null)
@@ -192,6 +208,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
           await updateTask(task.id, patch)
         }}
         onClaim={(task) => void claim(task)}
+        onAgendado={reload}
       />
 
       <TaskForm
@@ -200,6 +217,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         users={users ?? []}
         task={editing}
         defaultStatus={newStatus}
+        variant={variant}
         onSubmit={async (input: TaskInput) => {
           if (editing) await updateTask(editing.id, input)
           else await createTask(input)

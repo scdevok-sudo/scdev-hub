@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { useAuthStore } from '@/stores/authStore'
 import Admin from '@/pages/Admin'
+import AdminTasks from '@/pages/AdminTasks'
 import AuthCallback from '@/pages/AuthCallback'
 import Calculadora from '@/pages/Calculadora'
 import Dashboard from '@/pages/Dashboard'
@@ -97,6 +98,14 @@ export default function App() {
         element={
           <Protected adminOnly>
             <Calculadora />
+          </Protected>
+        }
+      />
+      <Route
+        path="/pendientes"
+        element={
+          <Protected adminOnly>
+            <AdminTasks />
           </Protected>
         }
       />

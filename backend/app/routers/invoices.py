@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dates import parse_month_range
 from app.core.deps import require_admin
+from app.core.google_calendar import GoogleCalendarNotConnected, agendar_manual, sync_on_delete, sync_on_save
 from app.models import Client, Invoice, Project, User
 from app.schemas import InvoiceCreate, InvoiceOut, InvoicesPipeline, InvoicesResumen, InvoiceUpdate
 
@@ -18,6 +20,28 @@ def _serialize(invoice: Invoice) -> InvoiceOut:
     item = InvoiceOut.model_validate(invoice)
     item.client_name = invoice.client.name if invoice.client else None
     return item
+
+
+def _sync_invoice_calendar(db: Session, invoice: Invoice) -> None:
+    """Parte E, fase 3. La fecha relevante para agendar es `fecha_seguimiento`
+    (el recordatorio de cobro), no `fecha` (que siempre esta seteada)."""
+    try:
+        event_id = sync_on_save(
+            db,
+            calendar_sync=invoice.calendar_sync,
+            due_date=invoice.fecha_seguimiento,
+            title=f"Seguimiento de cobro: {invoice.client.name if invoice.client else invoice.servicio or 'factura'}",
+            google_event_id=invoice.google_event_id,
+        )
+    except GoogleCalendarNotConnected as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
+    except httpx.HTTPError as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Error hablando con Google Calendar: {err}") from err
+
+    if event_id != invoice.google_event_id:
+        invoice.google_event_id = event_id
+        db.commit()
+        db.refresh(invoice)
 
 
 @router.get("", response_model=list[InvoiceOut])
@@ -62,6 +86,35 @@ def create_invoice(
     db.add(invoice)
     db.commit()
     db.refresh(invoice)
+    if invoice.calendar_sync != "off" and invoice.fecha_seguimiento:
+        _sync_invoice_calendar(db, invoice)
+    return _serialize(invoice)
+
+
+@router.post("/{invoice_id}/agendar", response_model=InvoiceOut)
+def agendar_invoice(
+    invoice_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    invoice = db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Factura no encontrada")
+    if not invoice.fecha_seguimiento:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La factura no tiene fecha de seguimiento")
+    try:
+        event_id = agendar_manual(
+            db,
+            title=f"Seguimiento de cobro: {invoice.client.name if invoice.client else invoice.servicio or 'factura'}",
+            due_date=invoice.fecha_seguimiento,
+        )
+    except GoogleCalendarNotConnected as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
+    except httpx.HTTPError as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Error hablando con Google Calendar: {err}") from err
+    invoice.google_event_id = event_id
+    db.commit()
+    db.refresh(invoice)
     return _serialize(invoice)
 
 
@@ -87,6 +140,10 @@ def update_invoice(
 
     db.commit()
     db.refresh(invoice)
+
+    if invoice.calendar_sync != "off" or "fecha_seguimiento" in changes or "calendar_sync" in changes:
+        _sync_invoice_calendar(db, invoice)
+
     return _serialize(invoice)
 
 
@@ -99,6 +156,10 @@ def delete_invoice(
     invoice = db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Factura no encontrada")
+    try:
+        sync_on_delete(db, calendar_sync=invoice.calendar_sync, google_event_id=invoice.google_event_id)
+    except (GoogleCalendarNotConnected, httpx.HTTPError):
+        pass
     db.delete(invoice)
     db.commit()
 

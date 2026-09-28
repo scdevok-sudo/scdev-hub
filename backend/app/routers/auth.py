@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.google import google_client
 from app.auth.jwt import create_access_token
 from app.core.config import settings
+from app.core.crypto import encrypt_token
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models import User
@@ -19,7 +20,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.get("/google/login")
 async def google_login(request: Request):
     client = google_client()
-    return await client.authorize_redirect(request, settings.google_redirect_uri)
+    # access_type=offline pide que Google devuelva un refresh_token (Parte E,
+    # fase 3, integracion con Calendar). prompt=consent va SIEMPRE, no solo la
+    # primera vez: sin el, un usuario que ya autorizo antes no vuelve a recibir
+    # el refresh_token en logins posteriores -- es el detalle mas facil de
+    # romper de todo este cambio, ver fase-3-calendario-subtareas-admin.md.
+    return await client.authorize_redirect(
+        request, settings.google_redirect_uri, access_type="offline", prompt="consent"
+    )
 
 
 @router.get("/google/callback")
@@ -44,6 +52,14 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     user.avatar_url = info.get("picture") or user.avatar_url
     if info.get("name"):
         user.name = info["name"]
+
+    # Google solo manda refresh_token cuando access_type=offline + prompt=consent
+    # dieron resultado (ver google_login). Si no vino, no se pisa el que ya
+    # hubiera guardado -- puede ser un login normal sin necesidad de reconsentir.
+    refresh_token = token.get("refresh_token")
+    if refresh_token:
+        user.google_refresh_token = encrypt_token(refresh_token)
+
     db.commit()
 
     access_token = create_access_token(user.id, user.email, user.role)

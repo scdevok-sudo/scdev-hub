@@ -7,6 +7,7 @@ import { ProjectStatusBadge } from '@/components/ui/Badge'
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
 import { KanbanBoard } from '@/components/kanban/KanbanBoard'
 import { PayoutSummary } from '@/components/PayoutSummary'
+import { ProjectMilestones } from '@/components/ProjectMilestones'
 import { TimeLogTable } from '@/components/TimeLogTable'
 import { ProjectForm } from '@/components/forms/ProjectForm'
 import { TimeLogForm } from '@/components/forms/TimeLogForm'
@@ -17,7 +18,7 @@ import { api } from '@/lib/api'
 import { cn, formatHours } from '@/lib/utils'
 import type { ProjectInput, TimeLog } from '@/types'
 
-type Tab = 'kanban' | 'horas' | 'reparto'
+type Tab = 'kanban' | 'horas' | 'reparto' | 'hitos'
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
@@ -33,6 +34,7 @@ export default function ProjectDetail() {
     { key: 'kanban', label: 'Kanban' },
     { key: 'horas', label: 'Horas' },
     ...(showPayout ? [{ key: 'reparto' as Tab, label: 'Reparto' }] : []),
+    { key: 'hitos', label: 'Hitos' },
   ]
 
   if (loading) {
@@ -101,6 +103,7 @@ export default function ProjectDetail() {
       {tab === 'kanban' && <KanbanBoard projectId={project.id} />}
       {tab === 'horas' && <ProjectHoursTab projectId={project.id} onChanged={reload} />}
       {tab === 'reparto' && showPayout && <ProjectPayoutTab projectId={project.id} />}
+      {tab === 'hitos' && <ProjectMilestones projectId={project.id} />}
 
       <ProjectForm
         open={editOpen}

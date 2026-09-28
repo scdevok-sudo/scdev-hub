@@ -1,6 +1,15 @@
 import { useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Calculator, Clock, DollarSign, FolderKanban, LayoutGrid, LogOut, Settings } from 'lucide-react'
+import {
+  Calculator,
+  CheckSquare,
+  Clock,
+  DollarSign,
+  FolderKanban,
+  LayoutGrid,
+  LogOut,
+  Settings,
+} from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useAuthStore } from '@/stores/authStore'
@@ -30,6 +39,7 @@ export function Sidebar() {
         ...LINKS,
         { to: '/finanzas', label: 'Finanzas', icon: DollarSign, end: false },
         { to: '/calculadora', label: 'Calculadora', icon: Calculator, end: false },
+        { to: '/pendientes', label: 'Pendientes', icon: CheckSquare, end: false },
         { to: '/admin', label: 'Admin', icon: Settings, end: false },
       ]
     : LINKS

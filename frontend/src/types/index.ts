@@ -3,6 +3,7 @@ export type ProjectStatus = 'active' | 'paused' | 'completed'
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
 export type ClaimStatus = 'pending' | 'approved' | 'rejected'
+export type CalendarSync = 'off' | 'manual' | 'automatic'
 
 export interface User {
   id: string
@@ -43,6 +44,7 @@ export interface ChecklistItem {
 export interface Task {
   id: string
   project_id: string | null
+  parent_task_id: string | null
   title: string
   description: string | null
   details: string | null
@@ -53,10 +55,22 @@ export interface Task {
   claim_status: ClaimStatus | null
   claimed_by: string | null
   created_by: string | null
+  due_date: string | null
+  calendar_sync: CalendarSync | null
+  google_event_id: string | null
   created_at?: string
   updated_at?: string
   assignee: User | null
   claimer: User | null
+}
+
+export interface TaskNote {
+  id: string
+  task_id: string | null
+  author_id: string | null
+  content: string
+  created_at?: string
+  author: User | null
 }
 
 export interface PendingClaim {
@@ -141,6 +155,9 @@ export interface TaskInput {
   status?: TaskStatus
   priority?: TaskPriority
   assigned_to?: string | null
+  parent_task_id?: string | null
+  due_date?: string | null
+  calendar_sync?: CalendarSync
 }
 
 export interface TimeLogInput {
@@ -192,6 +209,8 @@ export interface ClientService {
   proxima_fecha_vencimiento: string | null
   recurrencia: Recurrencia
   estado: ServiceEstado
+  calendar_sync: CalendarSync | null
+  google_event_id: string | null
   client_name: string | null
 }
 
@@ -202,6 +221,7 @@ export interface ClientServiceInput {
   proxima_fecha_vencimiento?: string | null
   recurrencia?: Recurrencia
   estado?: ServiceEstado
+  calendar_sync?: CalendarSync
 }
 
 export interface Invoice {
@@ -218,6 +238,8 @@ export interface Invoice {
   fecha: string
   fecha_seguimiento: string | null
   notas: string | null
+  calendar_sync: CalendarSync | null
+  google_event_id: string | null
   created_at?: string
   client_name: string | null
 }
@@ -232,6 +254,7 @@ export interface InvoiceInput {
   fecha: string
   fecha_seguimiento?: string | null
   notas?: string | null
+  calendar_sync?: CalendarSync
 }
 
 export interface RecurringExpense {
@@ -362,6 +385,24 @@ export interface SimularRequest {
   alianza_balance?: boolean
   descuento_alianza_pct?: number | null
   cliente_id?: string | null
+}
+
+// ----------------------------------------------------------------- Hitos
+
+export interface Milestone {
+  id: string
+  project_id: string
+  title: string
+  due_date: string | null
+  calendar_sync: CalendarSync | null
+  google_event_id: string | null
+  created_by: string | null
+}
+
+export interface MilestoneInput {
+  title: string
+  due_date?: string | null
+  calendar_sync?: CalendarSync
 }
 
 export interface SimularOut {

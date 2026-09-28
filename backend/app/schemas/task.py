@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -9,6 +9,7 @@ from app.schemas.user import UserOut
 TaskStatus = Literal["todo", "in_progress", "done"]
 TaskPriority = Literal["low", "medium", "high"]
 ClaimStatus = Literal["pending", "approved", "rejected"]
+CalendarSync = Literal["off", "manual", "automatic"]
 
 
 class ChecklistItem(BaseModel):
@@ -25,6 +26,9 @@ class TaskCreate(BaseModel):
     status: TaskStatus = "todo"
     priority: TaskPriority = "medium"
     assigned_to: uuid.UUID | None = None
+    parent_task_id: uuid.UUID | None = None
+    due_date: date | None = None
+    calendar_sync: CalendarSync = "off"
 
 
 class TaskUpdate(BaseModel):
@@ -35,6 +39,8 @@ class TaskUpdate(BaseModel):
     status: TaskStatus | None = None
     priority: TaskPriority | None = None
     assigned_to: uuid.UUID | None = None
+    due_date: date | None = None
+    calendar_sync: CalendarSync | None = None
 
 
 class TaskOut(BaseModel):
@@ -42,6 +48,7 @@ class TaskOut(BaseModel):
 
     id: uuid.UUID
     project_id: uuid.UUID | None = None
+    parent_task_id: uuid.UUID | None = None
     title: str
     description: str | None = None
     details: str | None = None
@@ -52,6 +59,9 @@ class TaskOut(BaseModel):
     claim_status: ClaimStatus | None = None
     claimed_by: uuid.UUID | None = None
     created_by: uuid.UUID | None = None
+    due_date: date | None = None
+    calendar_sync: CalendarSync | None = "off"
+    google_event_id: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
     assignee: UserOut | None = None
@@ -71,6 +81,23 @@ class CommentOut(BaseModel):
     content: str
     created_at: datetime | None = None
     user: UserOut | None = None
+
+
+class NoteCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=5000)
+
+
+class NoteOut(BaseModel):
+    """Misma tabla que CommentOut (task_comments, tipo='note') -- ver migracion 010."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    task_id: uuid.UUID | None = None
+    content: str
+    created_at: datetime | None = None
+    author_id: uuid.UUID | None = Field(default=None, validation_alias="user_id")
+    author: UserOut | None = Field(default=None, validation_alias="user")
 
 
 class PendingClaim(BaseModel):

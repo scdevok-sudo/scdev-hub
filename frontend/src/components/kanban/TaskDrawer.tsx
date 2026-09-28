@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ListChecks, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Send, Trash2, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import {
@@ -10,24 +10,41 @@ import {
   TaskStatusBadge,
 } from '@/components/ui/Badge'
 import { inputClass } from '@/components/ui/Field'
-import { useComments } from '@/hooks/useTasks'
+import { AgendarButton } from '@/components/forms/AgendarButton'
+import { useComments, useNotes, useSubtasks } from '@/hooks/useTasks'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ApiError } from '@/lib/api'
 import { cn, formatDateTime } from '@/lib/utils'
-import type { ChecklistItem, Task, TaskInput } from '@/types'
+import type { Task, TaskInput, TaskStatus, User } from '@/types'
 
 interface TaskDrawerProps {
   task: Task | null
+  users: User[]
+  /** Parte C, fase 3: los pendientes admin no tienen subtareas/notas/comentarios
+   * ni integracion de Calendar todavia. */
+  variant?: 'project' | 'admin'
   onClose: () => void
   onEdit: (task: Task) => void
   onDelete: (task: Task) => Promise<void>
   onUpdate: (task: Task, patch: Partial<TaskInput>) => Promise<void>
   onClaim: (task: Task) => void
+  onAgendado?: () => void
 }
 
-export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim }: TaskDrawerProps) {
+export function TaskDrawer({
+  task,
+  users,
+  variant = 'project',
+  onClose,
+  onEdit,
+  onDelete,
+  onUpdate,
+  onClaim,
+  onAgendado,
+}: TaskDrawerProps) {
   const { user, isAdmin } = useCurrentUser()
-  const { data: comments, loading, addComment } = useComments(task?.id)
+  const linkedDataEnabled = variant === 'project'
+  const { data: comments, loading, addComment } = useComments(linkedDataEnabled ? task?.id : undefined)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -155,62 +172,83 @@ export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim 
                 {task.description}
               </p>
             )}
+
+            {linkedDataEnabled && task.due_date && (
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-txt3">Fecha limite</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-txt2">{task.due_date}</span>
+                  {task.calendar_sync === 'manual' && !task.google_event_id && (
+                    <AgendarButton path={`/tasks/${task.id}/agendar`} onDone={() => onAgendado?.()} />
+                  )}
+                  {task.google_event_id && (
+                    <span className="text-[11px] text-emerald-400">En Calendar</span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
+
+          {linkedDataEnabled && <NotesSection task={task} />}
 
           <DetailsSection task={task} onUpdate={onUpdate} />
 
-          <ChecklistSection task={task} onUpdate={onUpdate} />
+          {linkedDataEnabled && <SubtasksSection task={task} users={users} />}
 
-          <div className="px-5 py-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-txt3">
-              Comentarios
-            </h3>
+          {linkedDataEnabled && (
+            <div className="px-5 py-4">
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-txt3">
+                Comentarios
+              </h3>
 
-            {loading && <p className="text-xs text-txt3">Cargando...</p>}
+              {loading && <p className="text-xs text-txt3">Cargando...</p>}
 
-            {!loading && comments?.length === 0 && (
-              <p className="text-xs text-txt3">Todavia no hay comentarios.</p>
-            )}
+              {!loading && comments?.length === 0 && (
+                <p className="text-xs text-txt3">Todavia no hay comentarios.</p>
+              )}
 
-            <ul className="space-y-3">
-              {comments?.map((comment) => (
-                <li key={comment.id} className="flex gap-2.5">
-                  <Avatar user={comment.user} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-baseline gap-2 text-[11px]">
-                      <span className="font-medium text-txt">{comment.user?.name ?? 'Alguien'}</span>
-                      <span className="text-txt3">{formatDateTime(comment.created_at)}</span>
-                    </p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-txt2">
-                      {comment.content}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
+              <ul className="space-y-3">
+                {comments?.map((comment) => (
+                  <li key={comment.id} className="flex gap-2.5">
+                    <Avatar user={comment.user} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-baseline gap-2 text-[11px]">
+                        <span className="font-medium text-txt">{comment.user?.name ?? 'Alguien'}</span>
+                        <span className="text-txt3">{formatDateTime(comment.created_at)}</span>
+                      </p>
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-txt2">
+                        {comment.content}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
-        <form onSubmit={send} className="border-t border-line px-5 py-3">
-          {error && <p className="mb-2 text-[11px] text-red">{error}</p>}
-          <div className="flex items-end gap-2">
-            <textarea
-              className={`${inputClass} min-h-10 resize-none py-2`}
-              rows={2}
-              value={draft}
-              placeholder="Escribi un comentario"
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  void send(e as unknown as React.FormEvent)
-                }
-              }}
-            />
-            <Button type="submit" size="sm" loading={sending} disabled={!draft.trim()}>
-              <Send className="size-3.5" />
-            </Button>
-          </div>
-        </form>
+        {linkedDataEnabled && (
+          <form onSubmit={send} className="border-t border-line px-5 py-3">
+            {error && <p className="mb-2 text-[11px] text-red">{error}</p>}
+            <div className="flex items-end gap-2">
+              <textarea
+                className={`${inputClass} min-h-10 resize-none py-2`}
+                rows={2}
+                value={draft}
+                placeholder="Escribi un comentario"
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    void send(e as unknown as React.FormEvent)
+                  }
+                }}
+              />
+              <Button type="submit" size="sm" loading={sending} disabled={!draft.trim()}>
+                <Send className="size-3.5" />
+              </Button>
+            </div>
+          </form>
+        )}
 
         {confirmDelete && (
           <div className="absolute inset-0 grid place-items-center bg-black/70 px-6">
@@ -331,11 +369,20 @@ function DetailsSection({ task, onUpdate }: SectionProps) {
   )
 }
 
-function ChecklistSection({ task, onUpdate }: SectionProps) {
-  const items = task.checklist ?? []
-  const done = items.filter((item) => item.done).length
-  const pct = items.length > 0 ? Math.round((done / items.length) * 100) : 0
+const SUBTASK_STATUSES: { value: TaskStatus; label: string }[] = [
+  { value: 'todo', label: 'Por hacer' },
+  { value: 'in_progress', label: 'En progreso' },
+  { value: 'done', label: 'Listo' },
+]
 
+/** Parte A, fase 3: subtareas reales (reemplaza el checklist jsonb viejo).
+ * Cada subtarea es una fila propia de `tasks`, con su propio estado y
+ * asignado. Simplificacion consciente respecto al Kanban de primer nivel:
+ * el cambio de estado va por un control de 3 botones en vez de drag & drop
+ * (mismo criterio que ya se uso para mobile en las Fases 2e/2f) -- anidar
+ * un drag & drop completo dentro del drawer no daba la complejidad extra. */
+function SubtasksSection({ task, users }: { task: Task; users: User[] }) {
+  const { data: subtasks, loading, createSubtask, updateSubtask, deleteSubtask } = useSubtasks(task.id)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -346,116 +393,90 @@ function ChecklistSection({ task, onUpdate }: SectionProps) {
     setError(null)
   }, [task.id])
 
-  const commit = async (next: ChecklistItem[]): Promise<boolean> => {
+  const items = subtasks ?? []
+  const done = items.filter((t) => t.status === 'done').length
+
+  const add = async () => {
+    const title = draft.trim()
+    if (!title) return
     setSaving(true)
     setError(null)
     try {
-      await onUpdate(task, { checklist: next })
-      return true
+      await createSubtask(task.project_id, title)
+      setDraft('')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo guardar el checklist')
-      return false
+      setError(err instanceof ApiError ? err.message : 'No se pudo crear la subtarea')
     } finally {
       setSaving(false)
+      inputRef.current?.focus()
     }
   }
-
-  const add = async () => {
-    const text = draft.trim()
-    if (!text) return
-    setDraft('')
-    const ok = await commit([...items, { id: crypto.randomUUID(), text, done: false }])
-    // Si el guardado fallo, devolver el texto al input en vez de perderlo.
-    if (!ok) setDraft(text)
-    inputRef.current?.focus()
-  }
-
-  const toggle = (id: string) =>
-    commit(items.map((item) => (item.id === id ? { ...item, done: !item.done } : item)))
-
-  const remove = (id: string) => commit(items.filter((item) => item.id !== id))
 
   return (
     <section className="border-b border-line px-5 py-4">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-txt3">Checklist</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-txt3">Subtareas</h3>
         {items.length > 0 && (
           <span className="text-[11px] text-txt3">
-            {done} de {items.length} completados
+            {done} de {items.length} listas
           </span>
         )}
       </div>
 
-      {items.length > 0 && (
-        <div
-          className="mb-3 h-1.5 overflow-hidden rounded-full bg-graphite2"
-          role="progressbar"
-          aria-valuenow={pct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={`${done} de ${items.length} items completados`}
-        >
-          <div
-            className={cn(
-              'h-full rounded-full transition-all duration-300',
-              done === items.length ? 'bg-emerald-500' : 'bg-red',
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
-
+      {loading && <p className="text-xs text-txt3">Cargando...</p>}
       {error && <p className="mb-2 text-[11px] text-red">{error}</p>}
 
-      <ul className="space-y-0.5">
-        {items.map((item) => (
-          <li key={item.id} className="group flex items-center gap-2 rounded-md px-1 py-1 hover:bg-graphite2">
-            <button
-              type="button"
-              role="checkbox"
-              aria-checked={item.done}
-              aria-label={item.text}
-              disabled={saving}
-              onClick={() => void toggle(item.id)}
-              className={cn(
-                'grid size-4 shrink-0 place-items-center rounded border transition-colors',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                item.done ? 'border-red bg-red text-white' : 'border-line hover:border-txt3',
-              )}
-            >
-              {item.done && <Check className="size-3" strokeWidth={3} />}
-            </button>
-
-            <span
-              className={cn(
-                'min-w-0 flex-1 break-words text-xs leading-snug',
-                item.done ? 'text-txt3 line-through' : 'text-txt2',
-              )}
-            >
-              {item.text}
-            </span>
-
-            <button
-              type="button"
-              aria-label={`Borrar "${item.text}"`}
-              disabled={saving}
-              onClick={() => void remove(item.id)}
-              className={cn(
-                'shrink-0 rounded p-1 text-txt3 opacity-0 transition-all',
-                'hover:bg-red-dim hover:text-red focus:opacity-100 group-hover:opacity-100',
-              )}
-            >
-              <Trash2 className="size-3.5" />
-            </button>
+      <ul className="space-y-1.5">
+        {items.map((subtask) => (
+          <li key={subtask.id} className="group rounded-lg border border-line/60 p-2">
+            <div className="flex items-center gap-2">
+              <Avatar user={subtask.assignee} size="xs" />
+              <span className="min-w-0 flex-1 truncate text-xs text-txt">{subtask.title}</span>
+              <select
+                value={subtask.assigned_to ?? ''}
+                onChange={(e) => void updateSubtask(subtask.id, { assigned_to: e.target.value || null })}
+                className="max-w-24 rounded-md border border-line bg-graphite2 px-1 py-1 text-[10px] text-txt2"
+              >
+                <option value="">Sin asignar</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                aria-label={`Borrar "${subtask.title}"`}
+                onClick={() => void deleteSubtask(subtask.id)}
+                className="shrink-0 rounded p-1 text-txt3 opacity-0 transition-all hover:bg-red-dim hover:text-red focus:opacity-100 group-hover:opacity-100"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+            <div className="mt-1.5 flex gap-1">
+              {SUBTASK_STATUSES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  disabled={subtask.status === option.value}
+                  onClick={() => void updateSubtask(subtask.id, { status: option.value })}
+                  className={cn(
+                    'flex-1 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors',
+                    subtask.status === option.value
+                      ? 'bg-red-dim text-red'
+                      : 'bg-graphite2 text-txt3 hover:text-txt2',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </li>
         ))}
       </ul>
 
-      {items.length === 0 && (
-        <p className="mb-2 flex items-center gap-1.5 text-[11px] text-txt3">
-          <ListChecks className="size-3.5" />
-          Sin items todavia.
-        </p>
+      {items.length === 0 && !loading && (
+        <p className="mb-2 text-[11px] text-txt3">Sin subtareas todavia.</p>
       )}
 
       <div className="mt-2 flex items-center gap-2">
@@ -463,7 +484,8 @@ function ChecklistSection({ task, onUpdate }: SectionProps) {
           ref={inputRef}
           className={`${inputClass} h-8 py-1 text-xs`}
           value={draft}
-          placeholder="Agregar item y Enter"
+          placeholder="Agregar subtarea y Enter"
+          disabled={saving}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -475,7 +497,7 @@ function ChecklistSection({ task, onUpdate }: SectionProps) {
         />
         <button
           type="button"
-          aria-label="Agregar item"
+          aria-label="Agregar subtarea"
           disabled={!draft.trim() || saving}
           onClick={() => void add()}
           className={cn(
@@ -486,6 +508,76 @@ function ChecklistSection({ task, onUpdate }: SectionProps) {
         >
           <Plus className="size-4" />
         </button>
+      </div>
+    </section>
+  )
+}
+
+/** Parte B, fase 3: bitacora de notas, separada de la descripcion y de los
+ * comentarios (misma tabla que comentarios con `tipo='note'`, ver backend). */
+function NotesSection({ task }: { task: Task }) {
+  const { data: notes, loading, addNote } = useNotes(task.id)
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setDraft('')
+    setError(null)
+  }, [task.id])
+
+  const send = async () => {
+    const content = draft.trim()
+    if (!content) return
+    setSending(true)
+    setError(null)
+    try {
+      await addNote(content)
+      setDraft('')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo guardar la nota')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <section className="border-b border-line px-5 py-4">
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-txt3">Notas</h3>
+
+      {loading && <p className="text-xs text-txt3">Cargando...</p>}
+      {!loading && notes?.length === 0 && (
+        <p className="text-xs text-txt3">Sin notas todavia.</p>
+      )}
+
+      <ul className="space-y-2.5">
+        {notes?.map((note) => (
+          <li key={note.id} className="rounded-lg bg-graphite2 px-2.5 py-2">
+            <p className="flex items-baseline gap-2 text-[11px]">
+              <span className="font-medium text-txt">{note.author?.name ?? 'Alguien'}</span>
+              <span className="text-txt3">{formatDateTime(note.created_at)}</span>
+            </p>
+            <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-txt2">{note.content}</p>
+          </li>
+        ))}
+      </ul>
+
+      {error && <p className="mt-2 text-[11px] text-red">{error}</p>}
+
+      <div className="mt-2 flex items-end gap-2">
+        <textarea
+          className={`${inputClass} min-h-9 resize-none py-1.5 text-xs`}
+          rows={1}
+          value={draft}
+          placeholder="Agregar una nota"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void send()
+          }}
+        />
+        <Button size="sm" loading={sending} disabled={!draft.trim()} onClick={() => void send()}>
+          Agregar
+        </Button>
       </div>
     </section>
   )

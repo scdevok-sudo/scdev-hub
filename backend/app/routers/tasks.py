@@ -1,16 +1,20 @@
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
+from app.core.google_calendar import GoogleCalendarNotConnected, agendar_manual, sync_on_delete, sync_on_save
 from app.models import Project, Task, TaskComment, User
 from app.routers.projects import get_visible_project
 from app.schemas import (
     CommentCreate,
     CommentOut,
+    NoteCreate,
+    NoteOut,
     PendingClaim,
     TaskCreate,
     TaskOut,
@@ -20,6 +24,31 @@ from app.schemas import (
 router = APIRouter(tags=["tasks"])
 
 STATUS_ORDER = {"todo": 0, "in_progress": 1, "done": 2}
+
+
+def _sync_task_calendar(db: Session, task: Task) -> None:
+    """Parte E, fase 3: crea/actualiza/borra el evento de Calendar segun
+    task.calendar_sync. No falla en silencio -- si la sync no se pudo hacer,
+    devuelve un 502 claro, pero la tarea ya quedo guardada (el commit anterior
+    no se revierte)."""
+    try:
+        event_id = sync_on_save(
+            db,
+            calendar_sync=task.calendar_sync,
+            due_date=task.due_date,
+            title=task.title,
+            google_event_id=task.google_event_id,
+            attendee_email=task.assignee.email if task.assignee else None,
+        )
+    except GoogleCalendarNotConnected as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
+    except httpx.HTTPError as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Error hablando con Google Calendar: {err}") from err
+
+    if event_id != task.google_event_id:
+        task.google_event_id = event_id
+        db.commit()
+        db.refresh(task)
 
 
 def _get_task(db: Session, user: User, task_id: uuid.UUID) -> Task:
@@ -38,12 +67,30 @@ def list_tasks(
     user: User = Depends(get_current_user),
 ):
     project = get_visible_project(db, user, project_id)
+    # Las subtareas no aparecen como columna propia del Kanban: viven en el
+    # drawer de su tarea madre (GET /tasks/{id}/subtasks).
     tasks = list(
         db.scalars(
-            select(Task).where(Task.project_id == project.id).order_by(Task.created_at.asc())
+            select(Task)
+            .where(Task.project_id == project.id, Task.parent_task_id.is_(None))
+            .order_by(Task.created_at.asc())
         )
     )
     return sorted(tasks, key=lambda t: STATUS_ORDER.get(t.status, 9))
+
+
+@router.get("/tasks/{task_id}/subtasks", response_model=list[TaskOut])
+def list_subtasks(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    task = _get_task(db, user, task_id)
+    return list(
+        db.scalars(
+            select(Task).where(Task.parent_task_id == task.id).order_by(Task.created_at.asc())
+        )
+    )
 
 
 @router.post(
@@ -56,10 +103,23 @@ def create_task(
     user: User = Depends(get_current_user),
 ):
     project = get_visible_project(db, user, project_id)
+
+    if payload.parent_task_id:
+        parent = db.get(Task, payload.parent_task_id)
+        if not parent or parent.project_id != project.id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "La tarea madre no existe en este proyecto")
+        if parent.parent_task_id is not None:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Solo se admite un nivel de subtareas (la madre ya es una subtarea)",
+            )
+
     task = Task(**payload.model_dump(), project_id=project.id, created_by=user.id)
     db.add(task)
     db.commit()
     db.refresh(task)
+    if task.calendar_sync != "off" and task.due_date:
+        _sync_task_calendar(db, task)
     return task
 
 
@@ -72,6 +132,18 @@ def update_task(
 ):
     task = _get_task(db, user, task_id)
     changes = payload.model_dump(exclude_unset=True)
+
+    # Parte D (fase 3): antes, cualquiera con acceso al proyecto podia editar
+    # cualquier tarea. Ahora: el creador, el asignado actual, o admin.
+    if not (user.is_admin or task.created_by == user.id or task.assigned_to == user.id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Solo el creador, el asignado o un admin puede editar esta tarea"
+        )
+    # Reasignar (cambiar a quien esta asignada) queda reservado a admin: un
+    # collaborator no puede mover el trabajo de otra persona.
+    if "assigned_to" in changes and not user.is_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo un admin puede reasignar la tarea")
+
     for field, value in changes.items():
         setattr(task, field, value)
 
@@ -81,6 +153,37 @@ def update_task(
         task.claim_status = None
         task.claimed_by = None
 
+    db.commit()
+    db.refresh(task)
+
+    if task.calendar_sync != "off" or "due_date" in changes or "calendar_sync" in changes:
+        _sync_task_calendar(db, task)
+
+    return task
+
+
+@router.post("/tasks/{task_id}/agendar", response_model=TaskOut)
+def agendar_task(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Boton "Agendar" (calendar_sync='manual'): crea el evento una sola vez."""
+    task = _get_task(db, user, task_id)
+    if not task.due_date:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "La tarea no tiene fecha para agendar")
+    try:
+        event_id = agendar_manual(
+            db,
+            title=task.title,
+            due_date=task.due_date,
+            attendee_email=task.assignee.email if task.assignee else None,
+        )
+    except GoogleCalendarNotConnected as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
+    except httpx.HTTPError as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Error hablando con Google Calendar: {err}") from err
+    task.google_event_id = event_id
     db.commit()
     db.refresh(task)
     return task
@@ -95,6 +198,12 @@ def delete_task(
     task = _get_task(db, user, task_id)
     if not user.is_admin and task.created_by != user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Solo el creador o un admin puede borrarla")
+    try:
+        sync_on_delete(db, calendar_sync=task.calendar_sync, google_event_id=task.google_event_id)
+    except (GoogleCalendarNotConnected, httpx.HTTPError):
+        # Borrar la tarea no debe quedar bloqueado porque Calendar no responda;
+        # el evento queda huerfano del lado de Google, aceptable en el borrado.
+        pass
     db.delete(task)
     db.commit()
 
@@ -191,7 +300,7 @@ def list_comments(
     return list(
         db.scalars(
             select(TaskComment)
-            .where(TaskComment.task_id == task_id)
+            .where(TaskComment.task_id == task_id, TaskComment.tipo == "comment")
             .order_by(TaskComment.created_at.asc())
         )
     )
@@ -207,8 +316,40 @@ def create_comment(
     user: User = Depends(get_current_user),
 ):
     _get_task(db, user, task_id)
-    comment = TaskComment(task_id=task_id, user_id=user.id, content=payload.content)
+    comment = TaskComment(task_id=task_id, user_id=user.id, content=payload.content, tipo="comment")
     db.add(comment)
     db.commit()
     db.refresh(comment)
     return comment
+
+
+@router.get("/tasks/{task_id}/notes", response_model=list[NoteOut])
+def list_notes(
+    task_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Bitacora de notas, separada de los comentarios (misma tabla, tipo='note')."""
+    _get_task(db, user, task_id)
+    return list(
+        db.scalars(
+            select(TaskComment)
+            .where(TaskComment.task_id == task_id, TaskComment.tipo == "note")
+            .order_by(TaskComment.created_at.asc())
+        )
+    )
+
+
+@router.post("/tasks/{task_id}/notes", response_model=NoteOut, status_code=status.HTTP_201_CREATED)
+def create_note(
+    task_id: uuid.UUID,
+    payload: NoteCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _get_task(db, user, task_id)
+    note = TaskComment(task_id=task_id, user_id=user.id, content=payload.content, tipo="note")
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note

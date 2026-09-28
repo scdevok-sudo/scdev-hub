@@ -3,7 +3,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
-from app.routers import auth, clients, dashboard, finance, invoices, pricing, projects, tasks, time_logs, users
+from app.routers import (
+    admin_tasks,
+    auth,
+    clients,
+    dashboard,
+    finance,
+    invoices,
+    pricing,
+    project_milestones,
+    projects,
+    tasks,
+    time_logs,
+    users,
+)
 
 app = FastAPI(title="SCdev Hub API", version="1.0.0")
 
@@ -33,6 +46,8 @@ app.include_router(clients.router)
 app.include_router(invoices.router)
 app.include_router(finance.router)
 app.include_router(pricing.router)
+app.include_router(admin_tasks.router)
+app.include_router(project_milestones.router)
 
 
 @app.get("/health", tags=["meta"])

@@ -1,3 +1,4 @@
+from app.schemas.admin_task import AdminTaskCreate, AdminTaskOut, AdminTaskUpdate
 from app.schemas.dashboard import DashboardOut
 from app.schemas.finance import (
     ClientCreate,
@@ -44,11 +45,14 @@ from app.schemas.project import (
     ProjectSummary,
     ProjectUpdate,
 )
+from app.schemas.project_milestone import MilestoneCreate, MilestoneOut, MilestoneUpdate
 from app.schemas.task import (
     ChecklistItem,
     ClaimStatus,
     CommentCreate,
     CommentOut,
+    NoteCreate,
+    NoteOut,
     PendingClaim,
     TaskCreate,
     TaskOut,
@@ -58,6 +62,9 @@ from app.schemas.time_log import TimeLogCreate, TimeLogOut, TimeLogUpdate
 from app.schemas.user import UserOut, UserWithHours
 
 __all__ = [
+    "AdminTaskCreate",
+    "AdminTaskOut",
+    "AdminTaskUpdate",
     "ChecklistItem",
     "ClaimStatus",
     "ClientCreate",
@@ -87,6 +94,11 @@ __all__ = [
     "InvoiceUpdate",
     "MemberCreate",
     "MemberOut",
+    "MilestoneCreate",
+    "MilestoneOut",
+    "MilestoneUpdate",
+    "NoteCreate",
+    "NoteOut",
     "PayoutRow",
     "PendingClaim",
     "PersonalIncomeCreate",

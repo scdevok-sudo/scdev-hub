@@ -4,6 +4,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.task import CalendarSync
+
 # ---------------------------------------------------------------- Clients
 
 class ClientCreate(BaseModel):
@@ -55,6 +57,7 @@ class ClientServiceCreate(BaseModel):
     proxima_fecha_vencimiento: date | None = None
     recurrencia: str = "mensual"
     estado: str = "activo"
+    calendar_sync: CalendarSync = "off"
 
 
 class ClientServiceUpdate(BaseModel):
@@ -64,6 +67,7 @@ class ClientServiceUpdate(BaseModel):
     proxima_fecha_vencimiento: date | None = None
     recurrencia: str | None = None
     estado: str | None = None
+    calendar_sync: CalendarSync | None = None
 
 
 class ClientServiceOut(BaseModel):
@@ -77,6 +81,8 @@ class ClientServiceOut(BaseModel):
     proxima_fecha_vencimiento: date | None = None
     recurrencia: str
     estado: str
+    calendar_sync: CalendarSync | None = "off"
+    google_event_id: str | None = None
     client_name: str | None = None
 
 
@@ -96,6 +102,7 @@ class InvoiceCreate(BaseModel):
     fecha: date
     fecha_seguimiento: date | None = None
     notas: str | None = None
+    calendar_sync: CalendarSync = "off"
 
 
 class InvoiceUpdate(BaseModel):
@@ -108,6 +115,7 @@ class InvoiceUpdate(BaseModel):
     fecha: date | None = None
     fecha_seguimiento: date | None = None
     notas: str | None = None
+    calendar_sync: CalendarSync | None = None
 
 
 class InvoiceOut(BaseModel):
@@ -126,6 +134,8 @@ class InvoiceOut(BaseModel):
     fecha: date
     fecha_seguimiento: date | None = None
     notas: str | None = None
+    calendar_sync: CalendarSync | None = "off"
+    google_event_id: str | None = None
     created_at: datetime | None = None
     client_name: str | None = None
 

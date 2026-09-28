@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Field, inputClass } from '@/components/ui/Field'
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
 import { InvoiceForm } from '@/components/forms/InvoiceForm'
+import { AgendarButton } from '@/components/forms/AgendarButton'
 import { deleteInvoice, updateInvoice, useInvoices } from '@/hooks/useFinance'
 import { formatDate, formatMoney } from '@/lib/utils'
 import type { Client, Invoice } from '@/types'
@@ -111,6 +112,9 @@ export function InvoiceTable({ clients }: { clients: Client[] }) {
                       Marcar cobrado
                     </button>
                   )}
+                  {invoice.calendar_sync === 'manual' && !invoice.google_event_id && invoice.fecha_seguimiento && (
+                    <AgendarButton path={`/invoices/${invoice.id}/agendar`} onDone={reload} />
+                  )}
                   <button
                     aria-label="Editar factura"
                     onClick={() => {
@@ -173,6 +177,9 @@ export function InvoiceTable({ clients }: { clients: Client[] }) {
                           >
                             Marcar cobrado
                           </button>
+                        )}
+                        {invoice.calendar_sync === 'manual' && !invoice.google_event_id && invoice.fecha_seguimiento && (
+                          <AgendarButton path={`/invoices/${invoice.id}/agendar`} onDone={reload} />
                         )}
                         <button
                           aria-label="Editar factura"

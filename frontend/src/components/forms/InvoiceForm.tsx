@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { Field, inputClass } from '@/components/ui/Field'
+import { CalendarSyncField } from '@/components/forms/CalendarSyncField'
 import { ApiError } from '@/lib/api'
 import { createInvoice, updateInvoice } from '@/hooks/useFinance'
 import { todayISO } from '@/lib/utils'
-import type { Client, Invoice, InvoiceEstado } from '@/types'
+import type { CalendarSync, Client, Invoice, InvoiceEstado } from '@/types'
 
 interface InvoiceFormProps {
   open: boolean
@@ -24,6 +25,7 @@ export function InvoiceForm({ open, onClose, onSaved, clients, invoice }: Invoic
   const [fecha, setFecha] = useState(todayISO())
   const [fechaSeguimiento, setFechaSeguimiento] = useState('')
   const [notas, setNotas] = useState('')
+  const [calendarSync, setCalendarSync] = useState<CalendarSync>('off')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -38,6 +40,7 @@ export function InvoiceForm({ open, onClose, onSaved, clients, invoice }: Invoic
     setFecha(invoice?.fecha ?? todayISO())
     setFechaSeguimiento(invoice?.fecha_seguimiento ?? '')
     setNotas(invoice?.notas ?? '')
+    setCalendarSync(invoice?.calendar_sync ?? 'off')
   }, [open, invoice, clients])
 
   const submit = async (event: React.FormEvent) => {
@@ -54,6 +57,7 @@ export function InvoiceForm({ open, onClose, onSaved, clients, invoice }: Invoic
           fecha,
           fecha_seguimiento: fechaSeguimiento || null,
           notas: notas || null,
+          calendar_sync: calendarSync,
         })
       } else {
         await createInvoice({
@@ -65,6 +69,7 @@ export function InvoiceForm({ open, onClose, onSaved, clients, invoice }: Invoic
           fecha,
           fecha_seguimiento: fechaSeguimiento || null,
           notas: notas || null,
+          calendar_sync: calendarSync,
         })
       }
       onSaved()
@@ -180,6 +185,12 @@ export function InvoiceForm({ open, onClose, onSaved, clients, invoice }: Invoic
             onChange={(e) => setNotas(e.target.value)}
           />
         </Field>
+
+        <CalendarSyncField
+          value={calendarSync}
+          onChange={setCalendarSync}
+          hasDate={Boolean(fechaSeguimiento)}
+        />
 
         {error && <p className="text-xs text-red">{error}</p>}
       </form>

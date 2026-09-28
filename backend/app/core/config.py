@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     jwt_expire_hours: int = 168
     jwt_algorithm: str = "HS256"
 
+    # Encriptacion del refresh_token de Google (Parte E, fase 3)
+    google_token_encryption_key: str = ""
+
     # DB
     database_url: str = ""
 
