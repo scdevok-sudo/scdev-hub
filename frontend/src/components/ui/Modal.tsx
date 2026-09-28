@@ -39,7 +39,7 @@ export function Modal({
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
         onClick={onClose}
@@ -50,7 +50,8 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-xl border border-line bg-graphite shadow-2xl',
+          'relative z-10 flex h-full w-full max-w-full flex-col border border-line bg-graphite shadow-2xl',
+          'sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-xl',
           className,
         )}
       >
@@ -67,7 +68,7 @@ export function Modal({
             <X className="size-4" />
           </button>
         </header>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:max-h-[70vh] sm:flex-none">{children}</div>
         {footer && (
           <footer className="flex justify-end gap-2 border-t border-line px-5 py-3">{footer}</footer>
         )}

@@ -14,7 +14,7 @@ import { useComments } from '@/hooks/useTasks'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { ApiError } from '@/lib/api'
 import { cn, formatDateTime } from '@/lib/utils'
-import type { ChecklistItem, Task, TaskInput, TaskStatus } from '@/types'
+import type { ChecklistItem, Task, TaskInput } from '@/types'
 
 interface TaskDrawerProps {
   task: Task | null
@@ -24,12 +24,6 @@ interface TaskDrawerProps {
   onUpdate: (task: Task, patch: Partial<TaskInput>) => Promise<void>
   onClaim: (task: Task) => void
 }
-
-const STATUSES: { value: TaskStatus; label: string }[] = [
-  { value: 'todo', label: 'Por hacer' },
-  { value: 'in_progress', label: 'En progreso' },
-  { value: 'done', label: 'Listo' },
-]
 
 export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim }: TaskDrawerProps) {
   const { user, isAdmin } = useCurrentUser()
@@ -84,7 +78,7 @@ export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim 
         role="dialog"
         aria-modal="true"
         aria-label={task.title}
-        className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col border-l border-line bg-graphite shadow-2xl"
+        className="absolute inset-0 flex w-full flex-col border-line bg-graphite shadow-2xl sm:inset-y-0 sm:left-auto sm:right-0 sm:max-w-[440px] sm:border-l"
       >
         <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
           <h2 className="text-base font-medium leading-snug text-txt">{task.title}</h2>
@@ -154,23 +148,6 @@ export function TaskDrawer({ task, onClose, onEdit, onDelete, onUpdate, onClaim 
               ) : (
                 <span className="text-txt3">Sin asignar</span>
               )}
-            </div>
-
-            <div className="flex gap-1.5">
-              {STATUSES.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => void onUpdate(task, { status: option.value })}
-                  disabled={task.status === option.value}
-                  className={
-                    task.status === option.value
-                      ? 'flex-1 rounded-lg bg-red-dim px-2 py-1.5 text-[11px] font-medium text-red'
-                      : 'flex-1 rounded-lg border border-line px-2 py-1.5 text-[11px] text-txt2 transition-colors hover:bg-graphite2 hover:text-txt'
-                  }
-                >
-                  {option.label}
-                </button>
-              ))}
             </div>
 
             {task.description && (

@@ -11,9 +11,21 @@ interface KanbanColumnProps {
   onOpen: (task: Task) => void
   onAdd: (status: TaskStatus) => void
   onClaim: (task: Task) => void
+  onStatusChange: (task: Task, status: TaskStatus) => void
+  /** Desktop: drag & drop. Mobile: sin drag, ver TaskCard. */
+  draggable: boolean
 }
 
-export function KanbanColumn({ status, label, tasks, onOpen, onAdd, onClaim }: KanbanColumnProps) {
+export function KanbanColumn({
+  status,
+  label,
+  tasks,
+  onOpen,
+  onAdd,
+  onClaim,
+  onStatusChange,
+  draggable,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
 
   return (
@@ -42,7 +54,14 @@ export function KanbanColumn({ status, label, tasks, onOpen, onAdd, onClaim }: K
         )}
       >
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpen} onClaim={onClaim} />
+          <TaskCard
+            key={task.id}
+            task={task}
+            onOpen={onOpen}
+            onClaim={onClaim}
+            onStatusChange={onStatusChange}
+            draggable={draggable}
+          />
         ))}
         {tasks.length === 0 && (
           <p className="grid flex-1 place-items-center rounded-lg border border-dashed border-line text-[11px] text-txt3">

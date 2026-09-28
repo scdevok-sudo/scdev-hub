@@ -5,16 +5,32 @@ import { Avatar } from '@/components/ui/Avatar'
 import { AvailableBadge, ClaimPendingBadge, PriorityBadge } from '@/components/ui/Badge'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { cn } from '@/lib/utils'
-import type { Task } from '@/types'
+import type { Task, TaskStatus } from '@/types'
+
+const STATUSES: { value: TaskStatus; label: string }[] = [
+  { value: 'todo', label: 'Por hacer' },
+  { value: 'in_progress', label: 'En progreso' },
+  { value: 'done', label: 'Listo' },
+]
 
 interface TaskCardProps {
   task: Task
   onOpen: (task: Task) => void
   onClaim?: (task: Task) => void
+  onStatusChange?: (task: Task, status: TaskStatus) => void
   dragging?: boolean
+  /** Desktop: drag & drop con @dnd-kit. Mobile: sin drag, ver StatusSwitcher abajo. */
+  draggable?: boolean
 }
 
-export function TaskCard({ task, onOpen, onClaim, dragging = false }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onOpen,
+  onClaim,
+  onStatusChange,
+  dragging = false,
+  draggable = true,
+}: TaskCardProps) {
   const { user, isAdmin } = useCurrentUser()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
@@ -36,14 +52,14 @@ export function TaskCard({ task, onOpen, onClaim, dragging = false }: TaskCardPr
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform) }}
-      {...listeners}
-      {...attributes}
+      style={draggable ? { transform: CSS.Translate.toString(transform) } : undefined}
+      {...(draggable ? listeners : {})}
+      {...(draggable ? attributes : {})}
       onClick={() => onOpen(task)}
       className={cn(
-        'cursor-grab touch-none rounded-lg border border-line bg-graphite2 p-3 text-left',
-        'transition-colors hover:border-txt3 active:cursor-grabbing',
-        (isDragging || dragging) && 'opacity-40',
+        'rounded-lg border border-line bg-graphite2 p-3 text-left transition-colors hover:border-txt3',
+        draggable && 'cursor-grab touch-none active:cursor-grabbing',
+        (isDragging || dragging) && draggable && 'opacity-40',
         dragging && 'rotate-2 opacity-100 shadow-2xl',
       )}
     >
@@ -80,8 +96,8 @@ export function TaskCard({ task, onOpen, onClaim, dragging = false }: TaskCardPr
           ) : canClaim ? (
             <button
               type="button"
-              // El card entero es draggable: frenar el pointerdown evita que dnd-kit
-              // tome el boton como inicio de arrastre, y el click no abre el drawer.
+              // El card entero es draggable en desktop: frenar el pointerdown evita que
+              // dnd-kit tome el boton como inicio de arrastre, y el click no abre el drawer.
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
@@ -96,6 +112,32 @@ export function TaskCard({ task, onOpen, onClaim, dragging = false }: TaskCardPr
           )}
         </div>
       </div>
+
+      {/* Mobile: sin drag & drop, cambio de estado directo desde la tarjeta. */}
+      {onStatusChange && (
+        <div
+          className="mt-3 flex gap-1 border-t border-line pt-2 md:hidden"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {STATUSES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              disabled={task.status === option.value}
+              onClick={() => onStatusChange(task, option.value)}
+              className={cn(
+                'flex-1 rounded-md px-1.5 py-1.5 text-[10px] font-medium transition-colors',
+                task.status === option.value
+                  ? 'bg-red-dim text-red'
+                  : 'bg-graphite text-txt2 hover:text-txt',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

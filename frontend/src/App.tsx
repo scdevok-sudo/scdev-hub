@@ -5,7 +5,9 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { useAuthStore } from '@/stores/authStore'
 import Admin from '@/pages/Admin'
 import AuthCallback from '@/pages/AuthCallback'
+import Calculadora from '@/pages/Calculadora'
 import Dashboard from '@/pages/Dashboard'
+import Finance from '@/pages/Finance'
 import Login from '@/pages/Login'
 import MyHours from '@/pages/MyHours'
 import ProjectDetail from '@/pages/ProjectDetail'
@@ -79,6 +81,22 @@ export default function App() {
         element={
           <Protected>
             <MyHours />
+          </Protected>
+        }
+      />
+      <Route
+        path="/finanzas"
+        element={
+          <Protected adminOnly>
+            <Finance />
+          </Protected>
+        }
+      />
+      <Route
+        path="/calculadora"
+        element={
+          <Protected adminOnly>
+            <Calculadora />
           </Protected>
         }
       />

@@ -11,9 +11,9 @@ interface PageWrapperProps {
 
 export function PageWrapper({ crumbs, actions, title, subtitle, children }: PageWrapperProps) {
   return (
-    <div className="ml-60 flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col md:ml-60">
       <Header crumbs={crumbs} actions={actions} />
-      <main className="flex-1 px-8 py-6">
+      <main className="flex-1 px-4 py-6 md:px-8">
         {title && (
           <div className="mb-6">
             <h1 className="text-2xl font-normal text-txt">{title}</h1>

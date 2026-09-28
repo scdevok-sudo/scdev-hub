@@ -17,14 +17,29 @@ import { TaskDrawer } from '@/components/kanban/TaskDrawer'
 import { TaskForm } from '@/components/forms/TaskForm'
 import { useTasks } from '@/hooks/useTasks'
 import { ApiError } from '@/lib/api'
+import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useUsers } from '@/hooks/useUsers'
-import type { Task, TaskInput, TaskStatus } from '@/types'
+import type { Task, TaskInput, TaskPriority, TaskStatus } from '@/types'
 
 const COLUMNS: { status: TaskStatus; label: string }[] = [
   { status: 'todo', label: 'Por hacer' },
   { status: 'in_progress', label: 'En progreso' },
   { status: 'done', label: 'Listo' },
 ]
+
+const PRIORITY_RANK: Record<TaskPriority, number> = { high: 2, medium: 1, low: 0 }
+
+/** Mobile (Fase 2f): todo/in_progress mezcladas arriba por prioridad, done al final. */
+function sortForMobileList(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const aDone = a.status === 'done' ? 1 : 0
+    const bDone = b.status === 'done' ? 1 : 0
+    if (aDone !== bDone) return aDone - bDone
+    const byPriority = PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority]
+    if (byPriority !== 0) return byPriority
+    return (a.created_at ?? '').localeCompare(b.created_at ?? '')
+  })
+}
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
   const {
@@ -37,6 +52,7 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     claimTask,
   } = useTasks(projectId)
   const { data: users } = useUsers()
+  const isDesktop = useIsDesktop()
 
   const [dragging, setDragging] = useState<Task | null>(null)
   const [openTaskId, setOpenTaskId] = useState<string | null>(null)
@@ -54,6 +70,8 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   }, [tasks])
 
   const openTask = (tasks ?? []).find((task) => task.id === openTaskId) ?? null
+
+  const mobileList = useMemo(() => sortForMobileList(tasks ?? []), [tasks])
 
   const onDragStart = (event: DragStartEvent) => {
     setDragging((event.active.data.current as { task?: Task } | undefined)?.task ?? null)
@@ -93,6 +111,46 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   if (loading) return <Loading label="Cargando tablero..." />
   if (error) return <ErrorState message={error} />
 
+  const columns = (
+    <div className="flex gap-4">
+      {COLUMNS.map((column) => (
+        <KanbanColumn
+          key={column.status}
+          status={column.status}
+          label={column.label}
+          tasks={byStatus[column.status]}
+          onOpen={(task) => setOpenTaskId(task.id)}
+          onAdd={openNew}
+          onClaim={(task) => void claim(task)}
+          onStatusChange={(task, status) => void updateTask(task.id, { status })}
+          draggable
+        />
+      ))}
+    </div>
+  )
+
+  // Mobile (Fase 2f): sin columnas ni scroll horizontal — una sola lista vertical
+  // con todas las tareas, sin headers de columna ni contador por estado.
+  const list = (
+    <div className="flex flex-col gap-2">
+      {mobileList.map((task) => (
+        <TaskCard
+          key={task.id}
+          task={task}
+          onOpen={(t) => setOpenTaskId(t.id)}
+          onClaim={(t) => void claim(t)}
+          onStatusChange={(t, status) => void updateTask(t.id, { status })}
+          draggable={false}
+        />
+      ))}
+      {mobileList.length === 0 && (
+        <p className="grid rounded-lg border border-dashed border-line py-8 text-center text-[11px] text-txt3">
+          Sin tareas
+        </p>
+      )}
+    </div>
+  )
+
   return (
     <>
       {claimError && (
@@ -107,25 +165,18 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
         </Button>
       </div>
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-          {COLUMNS.map((column) => (
-            <KanbanColumn
-              key={column.status}
-              status={column.status}
-              label={column.label}
-              tasks={byStatus[column.status]}
-              onOpen={(task) => setOpenTaskId(task.id)}
-              onAdd={openNew}
-              onClaim={(task) => void claim(task)}
-            />
-          ))}
-        </div>
-
-        <DragOverlay dropAnimation={null}>
-          {dragging && <TaskCard task={dragging} onOpen={() => undefined} dragging />}
-        </DragOverlay>
-      </DndContext>
+      {/* Desktop: 3 columnas + drag & drop, sin cambios. Mobile (Fase 2f): lista
+          unica sin columnas, sin drag (Fase 2e) — ver `list` mas arriba. */}
+      {isDesktop ? (
+        <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          {columns}
+          <DragOverlay dropAnimation={null}>
+            {dragging && <TaskCard task={dragging} onOpen={() => undefined} dragging />}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        list
+      )}
 
       <TaskDrawer
         task={openTask}
