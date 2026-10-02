@@ -29,6 +29,8 @@ interface TaskDrawerProps {
   onUpdate: (task: Task, patch: Partial<TaskInput>) => Promise<void>
   onClaim: (task: Task) => void
   onAgendado?: () => void
+  /** Se crearon/cambiaron/borraron subtareas desde el drawer. */
+  onSubtasksChanged?: () => void
 }
 
 export function TaskDrawer({
@@ -41,6 +43,7 @@ export function TaskDrawer({
   onUpdate,
   onClaim,
   onAgendado,
+  onSubtasksChanged,
 }: TaskDrawerProps) {
   const { user, isAdmin } = useCurrentUser()
   const linkedDataEnabled = variant === 'project'
@@ -193,7 +196,9 @@ export function TaskDrawer({
 
           <DetailsSection task={task} onUpdate={onUpdate} />
 
-          {linkedDataEnabled && <SubtasksSection task={task} users={users} />}
+          {linkedDataEnabled && !task.parent_task_id && (
+            <SubtasksSection task={task} users={users} onChanged={onSubtasksChanged} />
+          )}
 
           {linkedDataEnabled && (
             <div className="px-5 py-4">
@@ -381,8 +386,30 @@ const SUBTASK_STATUSES: { value: TaskStatus; label: string }[] = [
  * el cambio de estado va por un control de 3 botones en vez de drag & drop
  * (mismo criterio que ya se uso para mobile en las Fases 2e/2f) -- anidar
  * un drag & drop completo dentro del drawer no daba la complejidad extra. */
-function SubtasksSection({ task, users }: { task: Task; users: User[] }) {
-  const { data: subtasks, loading, createSubtask, updateSubtask, deleteSubtask } = useSubtasks(task.id)
+function SubtasksSection({
+  task,
+  users,
+  onChanged,
+}: {
+  task: Task
+  users: User[]
+  onChanged?: () => void
+}) {
+  const {
+    data: subtasks,
+    loading,
+    createSubtask,
+    updateSubtask: patchSubtask,
+    deleteSubtask: removeSubtask,
+  } = useSubtasks(task.id)
+  const updateSubtask = async (...args: Parameters<typeof patchSubtask>) => {
+    await patchSubtask(...args)
+    onChanged?.()
+  }
+  const deleteSubtask = async (...args: Parameters<typeof removeSubtask>) => {
+    await removeSubtask(...args)
+    onChanged?.()
+  }
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -403,6 +430,7 @@ function SubtasksSection({ task, users }: { task: Task; users: User[] }) {
     setError(null)
     try {
       await createSubtask(task.project_id, title)
+      onChanged?.()
       setDraft('')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'No se pudo crear la subtarea')

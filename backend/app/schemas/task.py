@@ -66,6 +66,9 @@ class TaskOut(BaseModel):
     updated_at: datetime | None = None
     assignee: UserOut | None = None
     claimer: UserOut | None = None
+    # Solo se completan en GET /projects/{id}/tasks (para el chevron de la card).
+    subtask_count: int = 0
+    subtask_done: int = 0
 
 
 class CommentCreate(BaseModel):

@@ -2,7 +2,7 @@ import uuid
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -76,6 +76,20 @@ def list_tasks(
             .order_by(Task.created_at.asc())
         )
     )
+    counts = {
+        parent_id: (total, done)
+        for parent_id, total, done in db.execute(
+            select(
+                Task.parent_task_id,
+                func.count(),
+                func.count().filter(Task.status == "done"),
+            )
+            .where(Task.project_id == project.id, Task.parent_task_id.is_not(None))
+            .group_by(Task.parent_task_id)
+        )
+    }
+    for task in tasks:
+        task.subtask_count, task.subtask_done = counts.get(task.id, (0, 0))
     return sorted(tasks, key=lambda t: STATUS_ORDER.get(t.status, 9))
 
 

@@ -16,7 +16,7 @@ import { TaskCard } from '@/components/kanban/TaskCard'
 import { TaskDrawer } from '@/components/kanban/TaskDrawer'
 import { TaskForm } from '@/components/forms/TaskForm'
 import { useAdminTasks, useTasks } from '@/hooks/useTasks'
-import { ApiError } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { useIsDesktop } from '@/hooks/useMediaQuery'
 import { useUsers } from '@/hooks/useUsers'
 import type { Task, TaskInput, TaskPriority, TaskStatus } from '@/types'
@@ -63,6 +63,7 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
     reload,
   } = isAdminBoard ? admin : project
   const claimTask = isAdminBoard ? undefined : project.claimTask
+  const setTasks = isAdminBoard ? admin.setData : project.setData
 
   const { data: users } = useUsers()
   const isDesktop = useIsDesktop()
@@ -73,6 +74,9 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
   const [editing, setEditing] = useState<Task | null>(null)
   const [newStatus, setNewStatus] = useState<TaskStatus>('todo')
   const [claimError, setClaimError] = useState<string | null>(null)
+  // Subtarea abierta en el drawer (las hijas no estan en `tasks`, que solo trae madres).
+  const [openSub, setOpenSub] = useState<Task | null>(null)
+  const [subVersion, setSubVersion] = useState(0)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -82,7 +86,32 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
     return grouped
   }, [tasks])
 
-  const openTask = (tasks ?? []).find((task) => task.id === openTaskId) ?? null
+  const openTask = openSub ?? (tasks ?? []).find((task) => task.id === openTaskId) ?? null
+
+  const openParent = (task: Task) => {
+    setOpenSub(null)
+    setOpenTaskId(task.id)
+  }
+  const openSubtask = (task: Task) => setOpenSub(task)
+  const closeDrawer = () => {
+    setOpenSub(null)
+    setOpenTaskId(null)
+  }
+
+  /** Las subtareas cambiaron (drawer o mini-lista): refresca contadores de las cards
+   * sin pasar por `reload`, que desmontaria el tablero entero (y las cards expandidas). */
+  const subtasksChanged = () => {
+    setSubVersion((v) => v + 1)
+    if (isAdminBoard || !projectId) return
+    void api.get<Task[]>(`/projects/${projectId}/tasks`).then(setTasks)
+  }
+
+  /** Editar/borrar una subtarea: no vive en la lista del tablero, va directo a la API. */
+  const patchSubtask = async (task: Task, patch: Partial<TaskInput>) => {
+    const updated = await api.patch<Task>(`/tasks/${task.id}`, patch)
+    setOpenSub((current) => (current?.id === task.id ? updated : current))
+    subtasksChanged()
+  }
 
   const mobileList = useMemo(() => sortForMobileList(tasks ?? []), [tasks])
 
@@ -133,7 +162,10 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
           status={column.status}
           label={column.label}
           tasks={byStatus[column.status]}
-          onOpen={(task) => setOpenTaskId(task.id)}
+          onOpen={(task) => openParent(task)}
+          onOpenSubtask={openSubtask}
+          onSubtasksChanged={subtasksChanged}
+          subtaskVersion={subVersion}
           onAdd={openNew}
           onClaim={(task) => void claim(task)}
           onStatusChange={(task, status) => void updateTask(task.id, { status })}
@@ -151,7 +183,10 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
         <TaskCard
           key={task.id}
           task={task}
-          onOpen={(t) => setOpenTaskId(t.id)}
+          onOpen={(t) => openParent(t)}
+          onOpenSubtask={openSubtask}
+          onSubtasksChanged={subtasksChanged}
+          subtaskVersion={subVersion}
           onClaim={(t) => void claim(t)}
           onStatusChange={(t, status) => void updateTask(t.id, { status })}
           draggable={false}
@@ -196,16 +231,23 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
         task={openTask}
         users={users ?? []}
         variant={variant}
-        onClose={() => setOpenTaskId(null)}
+        onClose={closeDrawer}
+        onSubtasksChanged={subtasksChanged}
         onEdit={(task) => {
-          setOpenTaskId(null)
+          closeDrawer()
           openEdit(task)
         }}
         onDelete={async (task) => {
-          await deleteTask(task.id)
+          if (task.parent_task_id) {
+            await api.delete(`/tasks/${task.id}`)
+            subtasksChanged()
+          } else {
+            await deleteTask(task.id)
+          }
         }}
         onUpdate={async (task, patch) => {
-          await updateTask(task.id, patch)
+          if (task.parent_task_id) await patchSubtask(task, patch)
+          else await updateTask(task.id, patch)
         }}
         onClaim={(task) => void claim(task)}
         onAgendado={reload}
@@ -219,7 +261,8 @@ export function KanbanBoard({ projectId, variant = 'project' }: KanbanBoardProps
         defaultStatus={newStatus}
         variant={variant}
         onSubmit={async (input: TaskInput) => {
-          if (editing) await updateTask(editing.id, input)
+          if (editing?.parent_task_id) await patchSubtask(editing, input)
+          else if (editing) await updateTask(editing.id, input)
           else await createTask(input)
         }}
       />

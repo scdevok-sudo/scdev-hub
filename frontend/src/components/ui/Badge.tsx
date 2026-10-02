@@ -29,8 +29,30 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
   return <span className={cn(BASE, config.className)}>{config.label}</span>
 }
 
-export function TaskStatusBadge({ status }: { status: TaskStatus }) {
+export function TaskStatusBadge({
+  status,
+  onClick,
+  title,
+}: {
+  status: TaskStatus
+  /** Si se pasa, el pill es un boton (ej: ciclar estado de una subtarea). */
+  onClick?: (event: React.MouseEvent) => void
+  title?: string
+}) {
   const config = TASK_STATUS[status]
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        title={title}
+        onClick={onClick}
+        onPointerDown={(e) => e.stopPropagation()}
+        className={cn(BASE, 'cursor-pointer whitespace-nowrap transition-opacity hover:opacity-80', config.className)}
+      >
+        {config.label}
+      </button>
+    )
+  }
   return <span className={cn(BASE, config.className)}>{config.label}</span>
 }
 

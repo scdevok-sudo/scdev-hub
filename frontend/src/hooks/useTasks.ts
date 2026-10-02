@@ -17,7 +17,14 @@ export function useTasks(projectId: string | undefined) {
 
   const updateTask = async (taskId: string, input: Partial<TaskInput>) => {
     const task = await api.patch<Task>(`/tasks/${taskId}`, input)
-    state.setData((state.data ?? []).map((t) => (t.id === taskId ? task : t)))
+    // El PATCH no recalcula los contadores de subtareas: se conservan los de la lista.
+    state.setData(
+      (state.data ?? []).map((t) =>
+        t.id === taskId
+          ? { ...task, subtask_count: t.subtask_count, subtask_done: t.subtask_done }
+          : t,
+      ),
+    )
     return task
   }
 
@@ -28,7 +35,13 @@ export function useTasks(projectId: string | undefined) {
 
   const claimTask = async (taskId: string) => {
     const task = await api.post<Task>(`/tasks/${taskId}/claim`)
-    state.setData((state.data ?? []).map((t) => (t.id === taskId ? task : t)))
+    state.setData(
+      (state.data ?? []).map((t) =>
+        t.id === taskId
+          ? { ...task, subtask_count: t.subtask_count, subtask_done: t.subtask_done }
+          : t,
+      ),
+    )
     return task
   }
 
@@ -93,10 +106,12 @@ export function useComments(taskId: string | undefined) {
   return { ...state, addComment }
 }
 
-export function useSubtasks(taskId: string | undefined) {
+/** `version` cambia cuando algo fuera del hook toco las subtareas (drawer, mini-lista):
+ * fuerza un refetch para que card, mini-lista y drawer no se desincronicen. */
+export function useSubtasks(taskId: string | undefined, version = 0) {
   const state = useAsync<Task[]>(
     () => (taskId ? api.get<Task[]>(`/tasks/${taskId}/subtasks`) : Promise.resolve([])),
-    [taskId],
+    [taskId, version],
   )
 
   const createSubtask = async (projectId: string | null, title: string) => {

@@ -12,6 +12,9 @@ interface KanbanColumnProps {
   onAdd: (status: TaskStatus) => void
   onClaim: (task: Task) => void
   onStatusChange: (task: Task, status: TaskStatus) => void
+  onOpenSubtask: (task: Task) => void
+  onSubtasksChanged: () => void
+  subtaskVersion: number
   /** Desktop: drag & drop. Mobile: sin drag, ver TaskCard. */
   draggable: boolean
 }
@@ -24,6 +27,9 @@ export function KanbanColumn({
   onAdd,
   onClaim,
   onStatusChange,
+  onOpenSubtask,
+  onSubtasksChanged,
+  subtaskVersion,
   draggable,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
@@ -60,6 +66,9 @@ export function KanbanColumn({
             onOpen={onOpen}
             onClaim={onClaim}
             onStatusChange={onStatusChange}
+            onOpenSubtask={onOpenSubtask}
+            onSubtasksChanged={onSubtasksChanged}
+            subtaskVersion={subtaskVersion}
             draggable={draggable}
           />
         ))}

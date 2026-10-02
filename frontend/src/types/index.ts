@@ -62,6 +62,9 @@ export interface Task {
   updated_at?: string
   assignee: User | null
   claimer: User | null
+  /** Solo viene poblado en la lista del proyecto (chevron de la card). */
+  subtask_count?: number
+  subtask_done?: number
 }
 
 export interface TaskNote {

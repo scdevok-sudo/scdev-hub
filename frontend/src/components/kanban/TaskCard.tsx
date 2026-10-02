@@ -1,8 +1,10 @@
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { ListChecks, MessageSquare } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronRight, MessageSquare } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { AvailableBadge, ClaimPendingBadge, PriorityBadge } from '@/components/ui/Badge'
+import { SubtaskList } from '@/components/kanban/SubtaskList'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { cn } from '@/lib/utils'
 import type { Task, TaskStatus } from '@/types'
@@ -19,6 +21,12 @@ interface TaskCardProps {
   onClaim?: (task: Task) => void
   onStatusChange?: (task: Task, status: TaskStatus) => void
   dragging?: boolean
+  /** Click en el titulo de una subtarea desplegada: abre su panel de detalle. */
+  onOpenSubtask?: (task: Task) => void
+  /** Cambio de estado de una subtarea desde la mini-lista. */
+  onSubtasksChanged?: () => void
+  /** Se incrementa cuando el drawer modifica subtareas, para refrescar la mini-lista. */
+  subtaskVersion?: number
   /** Desktop: drag & drop con @dnd-kit. Mobile: sin drag, ver StatusSwitcher abajo. */
   draggable?: boolean
 }
@@ -29,16 +37,20 @@ export function TaskCard({
   onClaim,
   onStatusChange,
   dragging = false,
+  onOpenSubtask,
+  onSubtasksChanged,
+  subtaskVersion = 0,
   draggable = true,
 }: TaskCardProps) {
+  const [expanded, setExpanded] = useState(false)
   const { user, isAdmin } = useCurrentUser()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
   })
 
-  const checklist = task.checklist ?? []
-  const checklistDone = checklist.filter((item) => item.done).length
+  const subtaskCount = task.subtask_count ?? 0
+  const subtaskDone = task.subtask_done ?? 0
 
   const pending = task.claim_status === 'pending'
   const available = task.assigned_to === null && !pending
@@ -50,6 +62,7 @@ export function TaskCard({
       : 'Solicitada'
 
   return (
+    <div className="flex flex-col gap-1.5">
     <div
       ref={setNodeRef}
       style={draggable ? { transform: CSS.Translate.toString(transform) } : undefined}
@@ -78,17 +91,27 @@ export function TaskCard({
       <div className="mt-3 flex items-center justify-between gap-2">
         <PriorityBadge priority={task.priority} />
         <div className="flex items-center gap-2">
-          {checklist.length > 0 && (
-            <span
+          {subtaskCount > 0 && !dragging && (
+            // Chevron = expandir hijas in-place. Convive con el drag (desktop) y con el
+            // control de 3 estados (mobile): frena pointerdown/click para no disparar ni
+            // el drag ni la apertura del drawer.
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpanded((v) => !v)
+              }}
+              aria-expanded={expanded}
+              aria-label={expanded ? 'Ocultar subtareas' : 'Mostrar subtareas'}
               className={cn(
-                'flex items-center gap-1 text-[10px]',
-                checklistDone === checklist.length ? 'text-emerald-400' : 'text-txt3',
+                '-my-1 flex items-center gap-0.5 rounded-md px-1 py-1 text-[10px] transition-colors hover:bg-graphite',
+                subtaskDone === subtaskCount ? 'text-emerald-400' : 'text-txt3 hover:text-txt',
               )}
-              title={`${checklistDone} de ${checklist.length} completados`}
             >
-              <ListChecks className="size-3.5" />
-              {checklistDone}/{checklist.length}
-            </span>
+              <ChevronRight className={cn('size-3.5 transition-transform', expanded && 'rotate-90')} />
+              {subtaskDone}/{subtaskCount}
+            </button>
           )}
           {task.description && <MessageSquare className="size-3.5 text-txt3" />}
           {task.assignee ? (
@@ -138,6 +161,16 @@ export function TaskCard({
           ))}
         </div>
       )}
+    </div>
+
+    {expanded && subtaskCount > 0 && !dragging && (
+      <SubtaskList
+        parent={task}
+        version={subtaskVersion}
+        onOpen={(sub) => onOpenSubtask?.(sub)}
+        onChanged={() => onSubtasksChanged?.()}
+      />
+    )}
     </div>
   )
 }
