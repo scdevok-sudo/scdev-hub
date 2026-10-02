@@ -1,16 +1,66 @@
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
-import { useClientServicesPipeline, useInvoicesPipeline } from '@/hooks/useFinance'
+import { useClientServicesPipeline, useInvoicesPipeline, useRecurringExpenses } from '@/hooks/useFinance'
 import { formatDate, formatMoney } from '@/lib/utils'
+import type { GastoTipo, RecurringExpense } from '@/types'
 
-type Item = { id: string; fecha: string; label: string; detail: string; kind: 'cobro' | 'servicio' }
+type Item = { id: string; fecha: string; label: string; detail: string; kind: 'cobro' | 'servicio' | 'gasto' }
 
-export function UpcomingList() {
+const WINDOW_DAYS = 30
+
+const pad = (n: number) => String(n).padStart(2, '0')
+const toIso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+// Misma regla que next_occurrence del backend: hoy incluido; en meses cortos, el ultimo dia.
+function nextOccurrence(day: number, today = new Date()): Date {
+  for (const offset of [0, 1]) {
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + offset + 1, 0).getDate()
+    const candidate = new Date(today.getFullYear(), today.getMonth() + offset, Math.min(day, lastDay))
+    if (candidate >= new Date(today.getFullYear(), today.getMonth(), today.getDate())) return candidate
+  }
+  throw new Error('unreachable')
+}
+
+function expenseItems(expenses: RecurringExpense[] | null | undefined): Item[] {
+  const limit = new Date()
+  limit.setDate(limit.getDate() + WINDOW_DAYS)
+  const limitIso = toIso(limit)
+  return (expenses ?? [])
+    .filter((expense) => expense.activo !== false && expense.dia_vencimiento)
+    .map((expense) => ({
+      id: `expense-${expense.id}`,
+      fecha: toIso(nextOccurrence(expense.dia_vencimiento as number)),
+      label: expense.concepto,
+      detail: formatMoney(expense.monto),
+      kind: 'gasto' as const,
+    }))
+    .filter((item) => item.fecha <= limitIso)
+}
+
+export function UpcomingList({ tipo }: { tipo: GastoTipo }) {
+  return tipo === 'agencia' ? <AgenciaUpcoming /> : <PersonalUpcoming />
+}
+
+function PersonalUpcoming() {
+  const { data: expenses, loading, error } = useRecurringExpenses('personal')
+  if (loading) return <Loading />
+  if (error) return <ErrorState message={error} />
+  return (
+    <UpcomingItems
+      items={expenseItems(expenses).sort((a, b) => a.fecha.localeCompare(b.fecha))}
+      emptyDescription="No hay gastos personales por vencer."
+    />
+  )
+}
+
+function AgenciaUpcoming() {
   const { data: invoicesPipeline, loading: loadingInvoices, error: errorInvoices } = useInvoicesPipeline()
-  const { data: servicesPipeline, loading: loadingServices, error: errorServices } = useClientServicesPipeline(30)
+  const { data: servicesPipeline, loading: loadingServices, error: errorServices } = useClientServicesPipeline(WINDOW_DAYS)
+  const { data: expenses, loading: loadingExpenses, error: errorExpenses } = useRecurringExpenses('agencia')
 
-  if (loadingInvoices || loadingServices) return <Loading />
+  if (loadingInvoices || loadingServices || loadingExpenses) return <Loading />
   if (errorInvoices) return <ErrorState message={errorInvoices} />
   if (errorServices) return <ErrorState message={errorServices} />
+  if (errorExpenses) return <ErrorState message={errorExpenses} />
 
   const items: Item[] = [
     ...(invoicesPipeline?.invoices ?? [])
@@ -31,10 +81,15 @@ export function UpcomingList() {
         detail: service.monto_mensual != null ? formatMoney(service.monto_mensual) : '',
         kind: 'servicio' as const,
       })),
+    ...expenseItems(expenses),
   ].sort((a, b) => a.fecha.localeCompare(b.fecha))
 
+  return <UpcomingItems items={items} emptyDescription="No hay cobros, servicios ni gastos por vencer." />
+}
+
+function UpcomingItems({ items, emptyDescription }: { items: Item[]; emptyDescription: string }) {
   if (items.length === 0) {
-    return <EmptyState title="Sin vencimientos proximos" description="No hay cobros ni servicios por vencer." />
+    return <EmptyState title="Sin vencimientos proximos" description={emptyDescription} />
   }
 
   return (
@@ -47,7 +102,11 @@ export function UpcomingList() {
           </div>
           <span
             className={
-              item.kind === 'cobro' ? 'text-xs font-medium text-red' : 'text-xs font-medium text-sky-400'
+              item.kind === 'cobro'
+                ? 'text-xs font-medium text-red'
+                : item.kind === 'gasto'
+                  ? 'text-xs font-medium text-amber-400'
+                  : 'text-xs font-medium text-sky-400'
             }
           >
             {item.detail}

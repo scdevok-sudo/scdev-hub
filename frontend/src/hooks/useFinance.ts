@@ -101,7 +101,7 @@ export function useInvoicesResumen(mes: string) {
 
 // ---------------------------------------------------------- Recurring expenses
 
-export function useRecurringExpenses(tipo: GastoTipo) {
+export function useRecurringExpenses(tipo?: GastoTipo) {
   return useAsync<RecurringExpense[]>(
     () => api.get<RecurringExpense[]>('/recurring-expenses', { tipo }),
     [tipo],

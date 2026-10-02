@@ -90,7 +90,7 @@ function AgenciaTab() {
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-txt">Vencimientos proximos</h2>
-        <UpcomingList />
+        <UpcomingList tipo="agencia" />
       </section>
 
       <ExpenseSection tipo="agencia" gastosKey={gastosKey} onOpenForm={() => setExpenseFormOpen(true)} />
@@ -132,6 +132,11 @@ function PersonalTab() {
       <section>
         <h2 className="mb-3 text-sm font-medium text-txt">Ingresos</h2>
         <PersonalIncomeTable />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-txt">Vencimientos proximos</h2>
+        <UpcomingList key={gastosKey} tipo="personal" />
       </section>
 
       <ExpenseSection tipo="personal" gastosKey={gastosKey} onOpenForm={() => setExpenseFormOpen(true)} />
