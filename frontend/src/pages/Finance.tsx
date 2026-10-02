@@ -9,6 +9,7 @@ import { UpcomingList } from '@/components/finance/UpcomingList'
 import { RecurringExpenseList } from '@/components/finance/RecurringExpenseList'
 import { ExpenseLogTable } from '@/components/finance/ExpenseLogTable'
 import { PersonalIncomeTable } from '@/components/finance/PersonalIncomeTable'
+import { PeriodSelector, currentMes, periodToMes, type Period } from '@/components/finance/PeriodSelector'
 import { ExpenseForm } from '@/components/forms/ExpenseForm'
 import { useClients, useResumenAgencia, useResumenPersonal } from '@/hooks/useFinance'
 import { cn, formatMoney } from '@/lib/utils'
@@ -18,9 +19,6 @@ type Tab = 'agencia' | 'personal'
 
 export default function Finance() {
   const [tab, setTab] = useState<Tab>('agencia')
-  const now = new Date()
-  const mes = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-
   return (
     <PageWrapper
       crumbs={[{ label: 'Finanzas' }]}
@@ -42,7 +40,7 @@ export default function Finance() {
         ))}
       </div>
 
-      {tab === 'agencia' ? <AgenciaTab mes={mes} /> : <PersonalTab mes={mes} />}
+      {tab === 'agencia' ? <AgenciaTab /> : <PersonalTab />}
     </PageWrapper>
   )
 }
@@ -56,8 +54,9 @@ function Stat({ label, value, accent = false }: { label: string; value: string; 
   )
 }
 
-function AgenciaTab({ mes }: { mes: string }) {
-  const { data: resumen, loading, error } = useResumenAgencia(mes)
+function AgenciaTab() {
+  const [period, setPeriod] = useState<Period>({ mode: 'historico', mes: currentMes() })
+  const { data: resumen, loading, error } = useResumenAgencia(periodToMes(period))
   const { data: clients, reload: reloadClients } = useClients()
   const [expenseFormOpen, setExpenseFormOpen] = useState(false)
   const [gastosKey, setGastosKey] = useState(0)
@@ -65,6 +64,7 @@ function AgenciaTab({ mes }: { mes: string }) {
   return (
     <div className="space-y-8">
       <section>
+        <PeriodSelector value={period} onChange={setPeriod} />
         {loading && <Loading />}
         {error && <ErrorState message={error} />}
         {resumen && (
@@ -108,19 +108,21 @@ function AgenciaTab({ mes }: { mes: string }) {
   )
 }
 
-function PersonalTab({ mes }: { mes: string }) {
-  const { data: resumen, loading, error } = useResumenPersonal(mes)
+function PersonalTab() {
+  const [period, setPeriod] = useState<Period>({ mode: 'historico', mes: currentMes() })
+  const { data: resumen, loading, error } = useResumenPersonal(periodToMes(period))
   const [expenseFormOpen, setExpenseFormOpen] = useState(false)
   const [gastosKey, setGastosKey] = useState(0)
 
   return (
     <div className="space-y-8">
       <section>
+        <PeriodSelector value={period} onChange={setPeriod} />
         {loading && <Loading />}
         {error && <ErrorState message={error} />}
         {resumen && (
           <div className="grid gap-3 sm:grid-cols-3">
-            <Stat label="Ingresos del mes" value={formatMoney(resumen.ingresos)} />
+            <Stat label={period.mode === 'mes' ? 'Ingresos del mes' : 'Ingresos'} value={formatMoney(resumen.ingresos)} />
             <Stat label="Gastos personales" value={formatMoney(resumen.gastos)} />
             <Stat label="Balance" value={formatMoney(resumen.balance)} accent />
           </div>

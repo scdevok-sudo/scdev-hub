@@ -154,14 +154,15 @@ export async function deletePersonalIncome(id: string) {
 
 // --------------------------------------------------------- Resumenes combinados
 
-export function useResumenAgencia(mes: string) {
+// `mes` undefined = historico (sin filtro de fecha).
+export function useResumenAgencia(mes: string | undefined) {
   return useAsync<FinanceResumenAgencia>(
     () => api.get<FinanceResumenAgencia>('/finance/resumen-agencia', { mes }),
     [mes],
   )
 }
 
-export function useResumenPersonal(mes: string) {
+export function useResumenPersonal(mes: string | undefined) {
   return useAsync<FinanceResumenPersonal>(
     () => api.get<FinanceResumenPersonal>('/finance/resumen-personal', { mes }),
     [mes],

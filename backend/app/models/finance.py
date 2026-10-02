@@ -140,4 +140,7 @@ class PersonalIncome(Base):
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     recurrente: Mapped[bool | None] = mapped_column(server_default="false")
     fuente: Mapped[str | None] = mapped_column(Text)
+    a_mes_vencido: Mapped[bool] = mapped_column(server_default="false")
+    # Siempre dia 1. Mes al que cuenta para el balance (ver migracion 014).
+    mes_aplicacion: Mapped[date] = mapped_column(Date, nullable=False)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))

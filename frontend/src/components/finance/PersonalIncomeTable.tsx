@@ -7,6 +7,15 @@ import { deletePersonalIncome, usePersonalIncome } from '@/hooks/useFinance'
 import { formatDate, formatMoney } from '@/lib/utils'
 import type { PersonalIncome } from '@/types'
 
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+/** "oct 2026" si el ingreso cuenta en un mes distinto al de su fecha de cobro; si no, null. */
+function aplicaLabel(income: PersonalIncome): string | null {
+  if (income.mes_aplicacion.slice(0, 7) === income.fecha.slice(0, 7)) return null
+  const [y, m] = income.mes_aplicacion.split('-').map(Number)
+  return `${MESES[m - 1]} ${y}`
+}
+
 export function PersonalIncomeTable() {
   const { data: incomes, loading, error, reload } = usePersonalIncome()
   const [formOpen, setFormOpen] = useState(false)
@@ -46,6 +55,7 @@ export function PersonalIncomeTable() {
                   <p className="text-[11px] text-txt3">
                     {formatDate(income.fecha)}
                     {income.fuente ? ` · ${income.fuente}` : ''}
+                    {aplicaLabel(income) ? ` · cuenta para ${aplicaLabel(income)}` : ''}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -83,6 +93,7 @@ export function PersonalIncomeTable() {
                   <th className="px-4 py-2.5">Fecha</th>
                   <th className="px-4 py-2.5">Concepto</th>
                   <th className="px-4 py-2.5">Fuente</th>
+                  <th className="px-4 py-2.5">Cuenta para</th>
                   <th className="px-4 py-2.5">Monto</th>
                   <th className="w-16 px-4 py-2.5" />
                 </tr>
@@ -96,6 +107,7 @@ export function PersonalIncomeTable() {
                       {income.recurrente && <span className="ml-1.5 text-[11px] text-txt3">(recurrente)</span>}
                     </td>
                     <td className="px-4 py-2.5 text-txt2">{income.fuente ?? '-'}</td>
+                    <td className="px-4 py-2.5 text-txt2">{aplicaLabel(income) ?? '-'}</td>
                     <td className="px-4 py-2.5 text-txt">{formatMoney(income.monto)}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-2">

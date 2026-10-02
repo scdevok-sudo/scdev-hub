@@ -305,6 +305,8 @@ export interface PersonalIncome {
   fecha: string
   recurrente: boolean | null
   fuente: string | null
+  a_mes_vencido: boolean
+  mes_aplicacion: string // YYYY-MM-DD, siempre dia 1
 }
 
 export interface PersonalIncomeInput {
@@ -313,6 +315,8 @@ export interface PersonalIncomeInput {
   fecha: string
   recurrente?: boolean
   fuente?: string | null
+  a_mes_vencido?: boolean
+  mes_aplicacion?: string | null
 }
 
 export interface ClientServicesPipelineResponse {
@@ -333,7 +337,7 @@ export interface InvoicesResumen {
 }
 
 export interface FinanceResumenAgencia {
-  mes: string
+  mes: string | null
   facturado: number
   iibb: number
   neto: number
@@ -342,7 +346,7 @@ export interface FinanceResumenAgencia {
 }
 
 export interface FinanceResumenPersonal {
-  mes: string
+  mes: string | null
   ingresos: number
   gastos: number
   balance: number

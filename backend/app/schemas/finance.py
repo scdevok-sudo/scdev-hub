@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.task import CalendarSync
 
@@ -205,12 +205,21 @@ class ExpenseLogOut(BaseModel):
     project_id: uuid.UUID | None = None
 
 
+def _to_first_of_month(value: date | None) -> date | None:
+    return value.replace(day=1) if value else value
+
+
 class PersonalIncomeCreate(BaseModel):
     concepto: str = Field(min_length=1, max_length=200)
     monto: Decimal
     fecha: date
     recurrente: bool = False
     fuente: str | None = None
+    a_mes_vencido: bool = False
+    # Opcional: si no viene, el backend lo calcula desde fecha + a_mes_vencido.
+    mes_aplicacion: date | None = None
+
+    _normalize_mes = field_validator("mes_aplicacion")(_to_first_of_month)
 
 
 class PersonalIncomeUpdate(BaseModel):
@@ -219,6 +228,10 @@ class PersonalIncomeUpdate(BaseModel):
     fecha: date | None = None
     recurrente: bool | None = None
     fuente: str | None = None
+    a_mes_vencido: bool | None = None
+    mes_aplicacion: date | None = None
+
+    _normalize_mes = field_validator("mes_aplicacion")(_to_first_of_month)
 
 
 class PersonalIncomeOut(BaseModel):
@@ -230,12 +243,14 @@ class PersonalIncomeOut(BaseModel):
     fecha: date
     recurrente: bool | None = None
     fuente: str | None = None
+    a_mes_vencido: bool = False
+    mes_aplicacion: date
 
 
 # ------------------------------------------------------- Resumenes combinados
 
 class FinanceResumenAgencia(BaseModel):
-    mes: str
+    mes: str | None = None  # None = historico
     facturado: float
     iibb: float
     neto: float
@@ -244,7 +259,7 @@ class FinanceResumenAgencia(BaseModel):
 
 
 class FinanceResumenPersonal(BaseModel):
-    mes: str
+    mes: str | None = None  # None = historico
     ingresos: float
     gastos: float
     balance: float
