@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Inbox, Pencil, Plus, X } from 'lucide-react'
+import { CalendarConnectCard } from '@/components/CalendarConnectCard'
 import { PageWrapper } from '@/components/layout/PageWrapper'
 import { Button } from '@/components/ui/Button'
 import { Avatar } from '@/components/ui/Avatar'
@@ -45,6 +46,8 @@ export default function Admin() {
         </Button>
       }
     >
+      <CalendarConnectCard />
+
       <PendingClaimsSection />
 
       <section className="mb-8">

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Computed, Date, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import CheckConstraint, Computed, Date, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -109,6 +109,9 @@ class RecurringExpense(Base):
     tipo: Mapped[str] = mapped_column(String, nullable=False)
     frecuencia: Mapped[str | None] = mapped_column(String, server_default="mensual")
     activo: Mapped[bool] = mapped_column(server_default="true")
+    dia_vencimiento: Mapped[int | None] = mapped_column(SmallInteger)
+    calendar_sync: Mapped[str | None] = mapped_column(String, server_default="off")
+    google_event_id: Mapped[str | None] = mapped_column(String)
 
 
 class ExpenseLog(Base):

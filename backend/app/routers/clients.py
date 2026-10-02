@@ -9,7 +9,14 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_admin
-from app.core.google_calendar import GoogleCalendarNotConnected, agendar_manual, sync_on_delete, sync_on_save
+from app.core.google_calendar import (
+    GoogleCalendarNotConnected,
+    build_recurrence,
+    crear_evento,
+    get_calendar_admin,
+    sync_recurring_on_delete,
+    sync_recurring_on_save,
+)
 from app.models import Client, ClientService, Invoice, User
 from app.schemas import (
     ClientCreate,
@@ -25,14 +32,29 @@ from app.schemas import (
 router = APIRouter(tags=["finance"])
 
 
-def _sync_service_calendar(db: Session, service: ClientService) -> None:
-    """Parte E, fase 3. La fecha relevante es `proxima_fecha_vencimiento`."""
+def _service_title(service: ClientService) -> str:
+    return f"Vencimiento: {service.servicio} ({service.client.name if service.client else ''})"
+
+
+def _service_recurrence(service: ClientService) -> list[str] | None:
+    start = service.proxima_fecha_vencimiento
+    return build_recurrence(service.recurrencia, start) if start else None
+
+
+def _sync_service_calendar(db: Session, service: ClientService, previous_sync: str | None) -> None:
+    """Evento recurrente segun `recurrencia`, anclado en `proxima_fecha_vencimiento`.
+
+    A diferencia de tareas/facturas/hitos, 'manual' crea una sola vez y no vuelve
+    a tocar el evento (ver sync_recurring_on_save).
+    """
     try:
-        event_id = sync_on_save(
+        event_id = sync_recurring_on_save(
             db,
             calendar_sync=service.calendar_sync,
-            due_date=service.proxima_fecha_vencimiento,
-            title=f"Vencimiento: {service.servicio} ({service.client.name if service.client else ''})",
+            previous_sync=previous_sync,
+            title=_service_title(service),
+            start_date=service.proxima_fecha_vencimiento,
+            recurrence=_service_recurrence(service),
             google_event_id=service.google_event_id,
         )
     except GoogleCalendarNotConnected as err:
@@ -161,7 +183,7 @@ def create_client_service(
     db.commit()
     db.refresh(service)
     if service.calendar_sync != "off" and service.proxima_fecha_vencimiento:
-        _sync_service_calendar(db, service)
+        _sync_service_calendar(db, service, previous_sync="off")
     return _serialize_service(service)
 
 
@@ -177,10 +199,11 @@ def agendar_client_service(
     if not service.proxima_fecha_vencimiento:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "El servicio no tiene proxima fecha de vencimiento")
     try:
-        event_id = agendar_manual(
-            db,
-            title=f"Vencimiento: {service.servicio} ({service.client.name if service.client else ''})",
+        event_id = crear_evento(
+            get_calendar_admin(db),
+            title=_service_title(service),
             due_date=service.proxima_fecha_vencimiento,
+            recurrence=_service_recurrence(service),
         )
     except GoogleCalendarNotConnected as err:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
@@ -203,13 +226,14 @@ def update_client_service(
     if not service:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Servicio no encontrado")
     changes = payload.model_dump(exclude_unset=True)
+    previous_sync = service.calendar_sync
     for field, value in changes.items():
         setattr(service, field, value)
     db.commit()
     db.refresh(service)
 
-    if service.calendar_sync != "off" or "proxima_fecha_vencimiento" in changes or "calendar_sync" in changes:
-        _sync_service_calendar(db, service)
+    if changes.keys() & {"calendar_sync", "proxima_fecha_vencimiento", "servicio", "recurrencia"}:
+        _sync_service_calendar(db, service, previous_sync)
 
     return _serialize_service(service)
 
@@ -224,7 +248,7 @@ def delete_client_service(
     if not service:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Servicio no encontrado")
     try:
-        sync_on_delete(db, calendar_sync=service.calendar_sync, google_event_id=service.google_event_id)
+        sync_recurring_on_delete(db, google_event_id=service.google_event_id)
     except (GoogleCalendarNotConnected, httpx.HTTPError):
         pass
     db.delete(service)

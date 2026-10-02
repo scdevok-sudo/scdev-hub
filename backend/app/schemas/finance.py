@@ -162,6 +162,8 @@ class RecurringExpenseCreate(BaseModel):
     tipo: str
     frecuencia: str = "mensual"
     activo: bool = True
+    dia_vencimiento: int | None = Field(default=None, ge=1, le=31)
+    calendar_sync: CalendarSync = "off"
 
 
 class RecurringExpenseUpdate(BaseModel):
@@ -170,6 +172,8 @@ class RecurringExpenseUpdate(BaseModel):
     monto: Decimal | None = None
     frecuencia: str | None = None
     activo: bool | None = None
+    dia_vencimiento: int | None = Field(default=None, ge=1, le=31)
+    calendar_sync: CalendarSync | None = None
 
 
 class RecurringExpenseOut(BaseModel):
@@ -182,6 +186,9 @@ class RecurringExpenseOut(BaseModel):
     tipo: str
     frecuencia: str | None = None
     activo: bool | None = None
+    dia_vencimiento: int | None = None
+    calendar_sync: CalendarSync | None = "off"
+    google_event_id: str | None = None
 
 
 class ExpenseLogCreate(BaseModel):

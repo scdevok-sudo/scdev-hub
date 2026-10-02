@@ -5,7 +5,8 @@ import { Field, inputClass } from '@/components/ui/Field'
 import { ApiError } from '@/lib/api'
 import { createExpenseLog, createRecurringExpense } from '@/hooks/useFinance'
 import { todayISO } from '@/lib/utils'
-import type { GastoTipo } from '@/types'
+import { RecurringCalendarFields } from '@/components/forms/RecurringCalendarFields'
+import type { CalendarSync, GastoTipo } from '@/types'
 
 interface ExpenseFormProps {
   open: boolean
@@ -20,6 +21,8 @@ export function ExpenseForm({ open, onClose, onSaved, tipo }: ExpenseFormProps) 
   const [monto, setMonto] = useState<number | ''>('')
   const [frecuencia, setFrecuencia] = useState<'recurrente' | 'puntual'>('puntual')
   const [fecha, setFecha] = useState(todayISO())
+  const [dia, setDia] = useState<number | ''>('')
+  const [calendarSync, setCalendarSync] = useState<CalendarSync>('off')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +34,8 @@ export function ExpenseForm({ open, onClose, onSaved, tipo }: ExpenseFormProps) 
     setMonto('')
     setFrecuencia('puntual')
     setFecha(todayISO())
+    setDia('')
+    setCalendarSync('off')
   }, [open])
 
   const submit = async (event: React.FormEvent) => {
@@ -44,6 +49,8 @@ export function ExpenseForm({ open, onClose, onSaved, tipo }: ExpenseFormProps) 
           categoria: categoria || null,
           monto: Number(monto),
           tipo,
+          dia_vencimiento: dia === '' ? null : dia,
+          calendar_sync: dia === '' ? 'off' : calendarSync,
         })
       } else {
         await createExpenseLog({
@@ -139,6 +146,15 @@ export function ExpenseForm({ open, onClose, onSaved, tipo }: ExpenseFormProps) 
               onChange={(e) => setFecha(e.target.value)}
             />
           </Field>
+        )}
+
+        {frecuencia === 'recurrente' && (
+          <RecurringCalendarFields
+            dia={dia}
+            onDiaChange={setDia}
+            calendarSync={calendarSync}
+            onCalendarSyncChange={setCalendarSync}
+          />
         )}
 
         {error && <p className="text-xs text-red">{error}</p>}

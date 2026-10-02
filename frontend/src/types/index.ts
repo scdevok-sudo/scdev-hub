@@ -268,6 +268,9 @@ export interface RecurringExpense {
   tipo: GastoTipo
   frecuencia: string | null
   activo: boolean | null
+  dia_vencimiento: number | null
+  calendar_sync: CalendarSync | null
+  google_event_id: string | null
 }
 
 export interface RecurringExpenseInput {
@@ -277,6 +280,8 @@ export interface RecurringExpenseInput {
   tipo: GastoTipo
   frecuencia?: string
   activo?: boolean
+  dia_vencimiento?: number | null
+  calendar_sync?: CalendarSync
 }
 
 export interface ExpenseLogEntry {

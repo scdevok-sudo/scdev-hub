@@ -96,4 +96,10 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   loginUrl: () => new URL('/auth/google/login', BASE_URL).toString(),
+  // Navegacion del navegador (redirige a Google): no puede mandar Bearer, el JWT va por query.
+  calendarConnectUrl: (token: string) => {
+    const url = new URL('/auth/google/connect-calendar', BASE_URL)
+    url.searchParams.set('token', token)
+    return url.toString()
+  },
 }

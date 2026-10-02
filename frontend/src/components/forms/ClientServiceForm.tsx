@@ -130,6 +130,16 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
               value={proximaFecha}
               onChange={(e) => setProximaFecha(e.target.value)}
             />
+            {recurrencia !== 'unico' && proximaFecha && (
+              <p className="mt-1 text-[11px] text-txt3">
+                En Calendar se repite {recurrencia === 'mensual' ? 'cada mes el dia' : 'cada ano el'}{' '}
+                {Number(proximaFecha.slice(8, 10))}
+                {recurrencia === 'mensual' && Number(proximaFecha.slice(8, 10)) > 28
+                  ? ' (o el ultimo dia en meses mas cortos)'
+                  : ''}
+                .
+              </p>
+            )}
           </Field>
         </div>
 
@@ -149,6 +159,7 @@ export function ClientServiceForm({ open, onClose, onSaved, clientId, service }:
           value={calendarSync}
           onChange={setCalendarSync}
           hasDate={Boolean(proximaFecha)}
+          manualHint="Se crea el evento una sola vez al guardar y no se vuelve a tocar: si cambia la fecha, ajustalo en Calendar."
         />
 
         {error && <p className="text-xs text-red">{error}</p>}

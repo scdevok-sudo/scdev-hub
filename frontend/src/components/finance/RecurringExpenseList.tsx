@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { CalendarClock, Trash2 } from 'lucide-react'
 import { EmptyState, ErrorState, Loading } from '@/components/ui/States'
 import { deleteRecurringExpense, updateRecurringExpense, useRecurringExpenses } from '@/hooks/useFinance'
 import { formatMoney } from '@/lib/utils'
+import { RecurringExpenseForm } from '@/components/forms/RecurringExpenseForm'
 import type { GastoTipo, RecurringExpense } from '@/types'
 
 const montoInputClass =
@@ -11,6 +12,7 @@ const montoInputClass =
 export function RecurringExpenseList({ tipo, refreshKey }: { tipo: GastoTipo; refreshKey: number }) {
   const { data: expenses, loading, error, reload } = useRecurringExpenses(tipo)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<RecurringExpense | null>(null)
 
   // refreshKey cambia cuando se crea un gasto recurrente desde el modal compartido.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,6 +54,7 @@ export function RecurringExpenseList({ tipo, refreshKey }: { tipo: GastoTipo; re
             saving={savingId === expense.id}
             onSaveMonto={saveMonto}
             onDelete={onDelete}
+            onEditCalendar={setEditing}
           />
         ))}
         <div className="flex items-center justify-between rounded-xl border border-line bg-graphite2/40 px-3 py-2">
@@ -67,6 +70,7 @@ export function RecurringExpenseList({ tipo, refreshKey }: { tipo: GastoTipo; re
             <tr>
               <th className="px-4 py-2.5">Concepto</th>
               <th className="px-4 py-2.5">Categoria</th>
+              <th className="px-4 py-2.5">Vence</th>
               <th className="px-4 py-2.5">Monto</th>
               <th className="w-10 px-4 py-2.5" />
             </tr>
@@ -76,6 +80,9 @@ export function RecurringExpenseList({ tipo, refreshKey }: { tipo: GastoTipo; re
               <tr key={expense.id}>
                 <td className="px-4 py-2.5 text-txt">{expense.concepto}</td>
                 <td className="px-4 py-2.5 text-txt2">{expense.categoria ?? '-'}</td>
+                <td className="px-4 py-2.5">
+                  <CalendarCell expense={expense} onEdit={setEditing} />
+                </td>
                 <td className="px-4 py-2.5">
                   <input
                     type="number"
@@ -109,7 +116,33 @@ export function RecurringExpenseList({ tipo, refreshKey }: { tipo: GastoTipo; re
           Total mensual: {formatMoney(total)}
         </p>
       </div>
+
+      <RecurringExpenseForm expense={editing} onClose={() => setEditing(null)} onSaved={reload} />
     </>
+  )
+}
+
+function CalendarCell({
+  expense,
+  onEdit,
+}: {
+  expense: RecurringExpense
+  onEdit: (expense: RecurringExpense) => void
+}) {
+  const sync = expense.calendar_sync ?? 'off'
+  return (
+    <button
+      type="button"
+      onClick={() => onEdit(expense)}
+      aria-label={`Editar vencimiento de ${expense.concepto}`}
+      className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-txt2 transition-colors hover:bg-graphite2 hover:text-txt"
+    >
+      <CalendarClock className={sync === 'off' ? 'size-3.5 text-txt3' : 'size-3.5 text-red'} />
+      {expense.dia_vencimiento ? `dia ${expense.dia_vencimiento}` : 'Sin dia'}
+      {sync !== 'off' && (
+        <span className="text-[10px] text-txt3">{sync === 'automatic' ? 'auto' : 'manual'}</span>
+      )}
+    </button>
   )
 }
 
@@ -118,17 +151,20 @@ function ExpenseRow({
   saving,
   onSaveMonto,
   onDelete,
+  onEditCalendar,
 }: {
   expense: RecurringExpense
   saving: boolean
   onSaveMonto: (id: string, monto: number) => void
   onDelete: (id: string) => void
+  onEditCalendar: (expense: RecurringExpense) => void
 }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl border border-line bg-graphite p-3">
       <div className="min-w-0">
         <p className="truncate text-sm text-txt">{expense.concepto}</p>
         {expense.categoria && <p className="text-[11px] text-txt3">{expense.categoria}</p>}
+        <CalendarCell expense={expense} onEdit={onEditCalendar} />
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <input

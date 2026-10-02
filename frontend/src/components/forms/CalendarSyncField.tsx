@@ -7,6 +7,8 @@ interface CalendarSyncFieldProps {
   onChange: (value: CalendarSync) => void
   /** Solo tiene sentido elegir sync si ya hay una fecha cargada. */
   hasDate: boolean
+  /** Texto del modo manual cuando difiere del boton "Agendar" (gastos recurrentes, servicios). */
+  manualHint?: string
 }
 
 const OPTIONS: { value: CalendarSync; label: string; icon: typeof CalendarOff }[] = [
@@ -18,7 +20,7 @@ const OPTIONS: { value: CalendarSync; label: string; icon: typeof CalendarOff }[
 /** Parte E, fase 3: un solo componente reusado en TaskForm, InvoiceForm,
  * ClientServiceForm y MilestoneForm -- mismo criterio en los 4 lugares con
  * `calendar_sync`. Aparece en cuanto hay una fecha cargada en el formulario. */
-export function CalendarSyncField({ value, onChange, hasDate }: CalendarSyncFieldProps) {
+export function CalendarSyncField({ value, onChange, hasDate, manualHint }: CalendarSyncFieldProps) {
   if (!hasDate) return null
 
   return (
@@ -46,7 +48,7 @@ export function CalendarSyncField({ value, onChange, hasDate }: CalendarSyncFiel
       </div>
       {value === 'manual' && (
         <p className="mt-1.5 text-[11px] text-txt3">
-          Se agenda con el boton "Agendar" -- no se crea el evento solo.
+          {manualHint ?? 'Se agenda con el boton "Agendar" -- no se crea el evento solo.'}
         </p>
       )}
       {value === 'automatic' && (

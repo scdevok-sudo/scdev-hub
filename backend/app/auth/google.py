@@ -4,19 +4,18 @@ from app.core.config import settings
 
 GOOGLE_METADATA_URL = "https://accounts.google.com/.well-known/openid-configuration"
 
-# Parte E, fase 3: se agrega el scope de Calendar para poder crear/editar/borrar
-# eventos desde la cuenta de Google con la que Santi ya tiene sesion en el Hub
-# (no un calendario separado). El login sigue pidiendo openid/email/profile
-# para identificar al usuario contra la whitelist -- eso no cambia.
+# El login pide solo openid/email/profile para identificar al usuario contra la
+# whitelist. El scope de Calendar se pide aparte y solo a un admin, via
+# /auth/google/connect-calendar (Parte E, fase 3).
+CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+
 oauth = OAuth()
 oauth.register(
     name="google",
     client_id=settings.google_client_id,
     client_secret=settings.google_client_secret,
     server_metadata_url=GOOGLE_METADATA_URL,
-    client_kwargs={
-        "scope": "openid email profile https://www.googleapis.com/auth/calendar.events"
-    },
+    client_kwargs={"scope": "openid email profile"},
 )
 
 

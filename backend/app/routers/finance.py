@@ -2,6 +2,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -9,6 +10,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dates import default_mes_aplicacion, parse_month_range
 from app.core.deps import require_admin
+from app.core.google_calendar import (
+    GoogleCalendarNotConnected,
+    build_recurrence,
+    next_occurrence,
+    sync_recurring_on_delete,
+    sync_recurring_on_save,
+)
 from app.models import ExpenseLog, Invoice, PersonalIncome, RecurringExpense, User
 from app.schemas import (
     ExpenseLogCreate,
@@ -41,6 +49,38 @@ def list_recurring_expenses(
     return list(db.scalars(stmt))
 
 
+def _sync_expense_calendar(db: Session, expense: RecurringExpense, previous_sync: str | None) -> None:
+    """Recordatorio de vencimiento en Calendar. Regla 'manual' = crear una vez (ver google_calendar)."""
+    start = next_occurrence(expense.dia_vencimiento) if expense.dia_vencimiento else None
+    try:
+        event_id = sync_recurring_on_save(
+            db,
+            calendar_sync=expense.calendar_sync,
+            previous_sync=previous_sync,
+            title=f"Vencimiento: {expense.concepto}",
+            start_date=start,
+            recurrence=build_recurrence(expense.frecuencia, start) if start else None,
+            google_event_id=expense.google_event_id,
+        )
+    except GoogleCalendarNotConnected as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(err)) from err
+    except httpx.HTTPError as err:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Error hablando con Google Calendar: {err}") from err
+
+    if event_id != expense.google_event_id:
+        expense.google_event_id = event_id
+        db.commit()
+        db.refresh(expense)
+
+
+def _require_day_for_sync(calendar_sync: str | None, dia: int | None) -> None:
+    if (calendar_sync or "off") != "off" and dia is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Para sincronizar con Google Calendar hace falta el dia de vencimiento",
+        )
+
+
 @router.post(
     "/recurring-expenses", response_model=RecurringExpenseOut, status_code=status.HTTP_201_CREATED
 )
@@ -49,10 +89,13 @@ def create_recurring_expense(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
+    _require_day_for_sync(payload.calendar_sync, payload.dia_vencimiento)
     expense = RecurringExpense(**payload.model_dump())
     db.add(expense)
     db.commit()
     db.refresh(expense)
+    if expense.calendar_sync != "off":
+        _sync_expense_calendar(db, expense, previous_sync="off")
     return expense
 
 
@@ -66,10 +109,20 @@ def update_recurring_expense(
     expense = db.get(RecurringExpense, expense_id)
     if not expense:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gasto recurrente no encontrado")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    previous_sync = expense.calendar_sync
+    _require_day_for_sync(
+        changes.get("calendar_sync", expense.calendar_sync),
+        changes["dia_vencimiento"] if "dia_vencimiento" in changes else expense.dia_vencimiento,
+    )
+    for field, value in changes.items():
         setattr(expense, field, value)
     db.commit()
     db.refresh(expense)
+
+    # Editar solo el monto no toca Google: unicamente lo que afecta al evento.
+    if changes.keys() & {"calendar_sync", "dia_vencimiento", "concepto", "frecuencia"}:
+        _sync_expense_calendar(db, expense, previous_sync)
     return expense
 
 
@@ -82,6 +135,10 @@ def delete_recurring_expense(
     expense = db.get(RecurringExpense, expense_id)
     if not expense:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Gasto recurrente no encontrado")
+    try:
+        sync_recurring_on_delete(db, google_event_id=expense.google_event_id)
+    except (GoogleCalendarNotConnected, httpx.HTTPError):
+        pass
     db.delete(expense)
     db.commit()
 
